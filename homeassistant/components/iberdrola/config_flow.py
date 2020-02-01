@@ -46,15 +46,16 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # pylint: disable=no-value-for-parameter
                 session = async_get_clientsession(self.hass)
                 connection = IberdrolaAuthentication(
-                    session=session,
-                    username=vol.Email()(self._username),
-                    password=self._password,
+                    session=session, username=self._username, password=self._password,
                 )
 
-                if await connection.login() is False:
-                    raise Exception(
-                        "Unexpected error communicating with the Audi server"
-                    )
+                loginResult = await connection.login()
+                _LOGGER.info("resultado de login")
+                _LOGGER.info(loginResult)
+                # if await connection.login() is False:
+                #    raise Exception(
+                #       "Unexpected error communicating with the Audi server"
+                #    )
 
             except vol.Invalid:
                 errors[CONF_USERNAME] = "invalid_username"
@@ -65,7 +66,7 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "user_already_configured"
                 else:
                     return self.async_create_entry(
-                        title=f"{self._username}",
+                        title=f"Iberdrola-{self._username}",
                         data={
                             CONF_USERNAME: self._username,
                             CONF_PASSWORD: self._password,
@@ -79,7 +80,7 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema[vol.Optional(CONF_SCAN_INTERVAL, default=10)] = int
 
         return self.async_show_form(
-            step_id="user", data_schema=vol.Schema(data_schema), errors=errors,
+            step_id="user", data_schema=vol.Schema(data_schema), errors=errors
         )
 
     async def async_step_import(self, user_input):
