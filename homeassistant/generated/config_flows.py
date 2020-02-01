@@ -40,6 +40,7 @@ FLOWS = [
     "huawei_lte",
     "hue",
     "iaqualink",
+    "iberdrola",
     "icloud",
     "ifttt",
     "ios",
