@@ -17,6 +17,7 @@ async def test_user(hass):
     flow.hass = hass
 
     result = await flow.async_step_user()
+
     assert result["step_id"] == "user"
 
     result = await flow.async_step_user(
