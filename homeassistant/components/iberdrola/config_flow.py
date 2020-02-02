@@ -45,17 +45,16 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 # pylint: disable=no-value-for-parameter
                 session = async_get_clientsession(self.hass)
+
                 connection = IberdrolaAuthentication(
                     session=session, username=self._username, password=self._password,
                 )
 
-                loginResult = await connection.login()
-                _LOGGER.info("resultado de login")
-                _LOGGER.info(loginResult)
-                # if await connection.login() is False:
-                #    raise Exception(
-                #       "Unexpected error communicating with the Audi server"
-                #    )
+                result = await connection.login()
+                if isinstance(result, tuple) and result[0] is False:
+                    errors[CONF_USERNAME] = result[1]
+                    errors["base"] = result[1]
+                    raise Exception(result[1])
 
             except vol.Invalid:
                 errors[CONF_USERNAME] = "invalid_username"
@@ -63,6 +62,7 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_credentials"
             else:
                 if self._username in configured_accounts(self.hass):
+
                     errors["base"] = "user_already_configured"
                 else:
                     return self.async_create_entry(
@@ -85,6 +85,9 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_import(self, user_input):
         """Import a config flow from configuration."""
+
+        _LOGGER.info("async_step_import")
+        _LOGGER.info("user_input")
         username = user_input[CONF_USERNAME]
         password = user_input[CONF_PASSWORD]
 
@@ -99,20 +102,19 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             session = async_get_clientsession(self.hass)
             connection = IberdrolaAuthentication(
-                session=session,
-                username=vol.Email()(self._username),
-                password=self._password,
+                session=session, username=self._username, password=self._password,
             )
 
-            if await connection.try_login(False) is False:
-                raise Exception("Unexpected error communicating with Iberdrola")
+            result = await connection.login()
+            if isinstance(result, tuple) and result[0] is False:
+                raise Exception(result[1])
 
         except Exception:
             _LOGGER.error("Invalid credentials for %s", username)
             return self.async_abort(reason="invalid_credentials")
 
         return self.async_create_entry(
-            title=f"{username} (from configuration)",
+            title=f"Iberdrola-{username} (from configuration)",
             data={
                 CONF_USERNAME: username,
                 CONF_PASSWORD: password,

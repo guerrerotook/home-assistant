@@ -17,11 +17,17 @@ async def test_user(hass):
     flow.hass = hass
 
     result = await flow.async_step_user()
+
     assert result["step_id"] == "user"
 
     result = await flow.async_step_user(
         {CONF_USERNAME: USERNAME, CONF_PASSWORD: PASSWORD, CONF_SCAN_INTERVAL: 10}
     )
+    _LOGGER.info(result)
+    if USERNAME == "Username":
+        assert result["errors"]["base"] == "invalid_credentials"
+    else:
+        assert result["title"] == f"Iberdrola-{USERNAME}"
 
 
 # assert result["title"] == USERNAME

@@ -19,6 +19,7 @@ class IberdrolaAuthentication:
         """Init the class."""
         self._username = username
         self._password = password
+        self._session = session
         self._cookieContainer = cookielib.CookieJar()
 
     async def login(self):
@@ -34,18 +35,27 @@ class IberdrolaAuthentication:
             "",
             "n",
         ]
-        result = await self.post(
-            "https://www.i-de.es/consumidores/rest/loginNew/login", data, use_json=False
+
+        responseTuple = await self.post(
+            "https://www.i-de.es/consumidores/rest/loginNew/login", data, use_json=True
         )
-        self._cookieContainer = result.cookies
+
+        response = responseTuple[0]
+        self._cookieContainer = response.cookies
+        result = False
+        if response.status == 200 or response.status == 202:
+            if responseTuple[1]["success"] == "true":
+                result = True
+            else:
+                result = (False, responseTuple[1]["message"])
         return result
 
     async def post(self, url, data=None, use_json: bool = True):
         """Execute the POST Request."""
-
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
         if use_json and data is not None:
             data = json.dumps(data)
-        r = await self.request(METH_POST, url, headers=None, data=data)
+        r = await self.request(METH_POST, url, headers=headers, data=data)
         return r
 
     async def request(self, method, url, data, headers, **kwargs):
@@ -60,8 +70,7 @@ class IberdrolaAuthentication:
                     cookies=self._cookieContainer,
                 ) as response:
                     if response.status == 200 or response.status == 202:
-                        _LOGGER.info("OK='%s'", response.status)
-                        return await response.json()
+                        return (response, await response.json())
                     else:
                         _LOGGER.error(
                             "request_info=%s, response.history='%s',  response.status='%s', response.resason='%s'",
