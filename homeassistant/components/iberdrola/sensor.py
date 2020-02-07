@@ -1,17 +1,27 @@
 """Platform for sensor integration."""
-from homeassistant.const import TEMP_CELSIUS
-from homeassistant.helpers.entity import Entity
+from homeassistant.const import CONF_USERNAME, TEMP_CELSIUS
+
+from .const import DOMAIN
+from .iberdola_entity import IberdolaEntity
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Set up the sensor platform."""
-    add_entities([ExampleSensor()])
+async def async_setup_entry(hass, config_entry, async_add_entities):
+    """Define the setup for the sensor."""
+    sensors = []
+
+    account = config_entry.data.get(CONF_USERNAME)
+    manager = hass.data[DOMAIN][account]
+
+    for sensor in manager.iberdola_data:
+        sensors.append(PowerConsumption(sensor))
+
+    async_add_entities(sensors, True)
 
 
-class ExampleSensor(Entity):
+class PowerConsumption(IberdolaEntity):
     """Representation of a Sensor."""
 
-    def __init__(self):
+    def __init__(self, data):
         """Initialize the sensor."""
         self._state = None
 
