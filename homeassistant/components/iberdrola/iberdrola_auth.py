@@ -1,5 +1,6 @@
 """This class handle the authentication with the Iberdrola API."""
 from asyncio import TimeoutError
+from datetime import date
 import http.cookiejar as cookielib
 import json
 import logging
@@ -49,6 +50,24 @@ class IberdrolaAuthentication:
             else:
                 result = (False, responseTuple[1]["message"])
         return result
+
+    async def getConsumptionData(self):
+        """Get the constumption data for the current user."""
+        today = date.today()
+
+        responseTuple = await self.post(
+            format(
+                "https://www.i-de.es/consumidores/rest/consumoNew/obtenerDatosConsumo/fechaInicio/{:02d}-{:02d}-{}00:00:00/colectivo/USU/frecuencia/horas/acumular/false?_=1580156900745",
+                today.day(),
+                today.month(),
+                today.year,
+            ),
+            None,
+            use_json=False,
+        )
+        json_content = responseTuple[1]
+        self._cookieContainer = responseTuple.cookies
+        return json_content
 
     async def post(self, url, data=None, use_json: bool = True):
         """Execute the POST Request."""
