@@ -28,7 +28,3 @@ async def test_user(hass):
         assert result["errors"]["base"] == "invalid_credentials"
     else:
         assert result["title"] == f"Iberdrola-{USERNAME}"
-
-
-# assert result["title"] == USERNAME
-# assert result["data"][CONF_USERNAME] == USERNAME
