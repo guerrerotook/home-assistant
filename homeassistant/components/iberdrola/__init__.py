@@ -1,19 +1,12 @@
 """Iberdrola integration."""
-from datetime import timedelta
-
-from iberdrola_manager import IberdrolaManager
 import voluptuous as vol
 
-from homeassistant.const import (
-    CONF_NAME,
-    CONF_PASSWORD,
-    CONF_SCAN_INTERVAL,
-    CONF_USERNAME,
-)
+from homeassistant.const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_USERNAME
 import homeassistant.helpers.config_validation as cv
 from homeassistant.util.dt import utcnow
 
 from .const import COMPONENTS, DOMAIN, UPDATE_INTERVAL
+from .iberdrola_manager import IberdrolaManager
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -21,10 +14,8 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Required(CONF_USERNAME): cv.string,
                 vol.Required(CONF_PASSWORD): cv.string,
-                vol.Optional(
-                    CONF_SCAN_INTERVAL, default=timedelta(minutes=UPDATE_INTERVAL),
-                ): vol.All(
-                    cv.time_period, vol.Clamp(min=timedelta(minutes=UPDATE_INTERVAL)),
+                vol.Optional(CONF_SCAN_INTERVAL, UPDATE_INTERVAL,): vol.All(
+                    cv.time_period, vol.Clamp(min=UPDATE_INTERVAL),
                 ),
             }
         )
@@ -38,21 +29,9 @@ async def async_setup(hass, config):
     if hass.config_entries.async_entries(DOMAIN):
         return True
 
-    if DOMAIN not in config:
-        return True
-
-    names = config[DOMAIN].get(CONF_NAME)
-    if len(names) == 0:
-        return True
-
-    data = {}
-    data[CONF_USERNAME] = config[DOMAIN].get(CONF_USERNAME)
-    data[CONF_PASSWORD] = config[DOMAIN].get(CONF_PASSWORD)
-    data[CONF_SCAN_INTERVAL] = config[DOMAIN].get(CONF_SCAN_INTERVAL).seconds / 60
-
-    hass.async_create_task(
+    await hass.async_create_task(
         hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config.SOURCE_IMPORT}, data=data
+            DOMAIN, context={"source": config.source}, data=config.data
         )
     )
 

@@ -2,7 +2,7 @@
     "domain": "iberdrola",
     "name": "Iberdrola I DE",
     "config_flow": true,    
-    "dependencies": ["mqtt"],
+    "dependencies": [],
     "codeowners": ["@guerrerotook"],
     "documentation": "https://www.home-assistant.io/integrations/iberdrola",
     "requirements": [""] 

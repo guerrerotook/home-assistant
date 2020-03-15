@@ -56,17 +56,14 @@ class IberdrolaAuthentication:
         today = date.today()
 
         responseTuple = await self.post(
-            format(
-                "https://www.i-de.es/consumidores/rest/consumoNew/obtenerDatosConsumo/fechaInicio/{:02d}-{:02d}-{}00:00:00/colectivo/USU/frecuencia/horas/acumular/false?_=1580156900745",
-                today.day(),
-                today.month(),
-                today.year,
+            "https://www.i-de.es/consumidores/rest/consumoNew/obtenerDatosConsumo/fechaInicio/{:02d}-{:02d}-{}00:00:00/colectivo/USU/frecuencia/horas/acumular/false?_=1580156900745".format(
+                today.day - 1, today.month, today.year,
             ),
             None,
             use_json=False,
         )
         json_content = responseTuple[1]
-        self._cookieContainer = responseTuple.cookies
+        self._cookieContainer = responseTuple[0].cookies
         return json_content
 
     async def post(self, url, data=None, use_json: bool = True):
