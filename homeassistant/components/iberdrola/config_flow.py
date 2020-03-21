@@ -88,9 +88,9 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         _LOGGER.info("async_step_import")
         _LOGGER.info("user_input")
-        username = user_input[CONF_USERNAME]
-        password = user_input[CONF_PASSWORD]
-
+        self._username = user_input[CONF_USERNAME]
+        self._password = user_input[CONF_PASSWORD]
+        errors = {}
         scan_interval = 10
 
         if user_input.get(CONF_SCAN_INTERVAL):
@@ -107,17 +107,19 @@ class IberdrolaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             result = await connection.login()
             if isinstance(result, tuple) and result[0] is False:
+                errors[CONF_USERNAME] = result[1]
+                errors["base"] = result[1]
                 raise Exception(result[1])
 
         except Exception:
-            _LOGGER.error("Invalid credentials for %s", username)
+            _LOGGER.error("Invalid credentials for %s", self._username)
             return self.async_abort(reason="invalid_credentials")
 
         return self.async_create_entry(
-            title=f"Iberdrola-{username} (from configuration)",
+            title=f"Iberdrola-{self._username} (from configuration)",
             data={
-                CONF_USERNAME: username,
-                CONF_PASSWORD: password,
+                CONF_USERNAME: self._username,
+                CONF_PASSWORD: self._password,
                 CONF_SCAN_INTERVAL: scan_interval,
             },
         )
