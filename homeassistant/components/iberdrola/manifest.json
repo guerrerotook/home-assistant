@@ -5,5 +5,5 @@
     "dependencies": [],
     "codeowners": ["@guerrerotook"],
     "documentation": "https://www.home-assistant.io/integrations/iberdrola",
-    "requirements": [""] 
+    "requirements": [] 
   }

@@ -27,6 +27,6 @@ async def test_user(hass):
         domain=iberdrola.const.DOMAIN,
         data=deepcopy(ENTRY_CONFIG),
         title="IberdrolaIntegrationTest",
-    )
+    ).as_dict()
 
     await iberdrola.async_setup(hass, config_entry)

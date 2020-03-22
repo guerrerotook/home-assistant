@@ -12,41 +12,44 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     account = config_entry.data.get(CONF_USERNAME)
     manager = hass.data[DOMAIN][account]
 
+    prefix = "iberdrola_"
+
     sensors.append(
         PowerConsumption(
-            "acumulado",
-            manager.config_entry.data["consumption"]["acumulado"],
+            prefix + "acumulado", manager.data["consumption"]["acumulado"], POWER_WATT,
+        )
+    )
+    sensors.append(
+        PowerConsumption(
+            prefix + "consumoMedio",
+            manager.data["consumption"]["consumoMedio"],
             POWER_WATT,
         )
     )
     sensors.append(
         PowerConsumption(
-            "consumoMedio",
-            manager.config_entry.data["consumption"]["consumoMedio"],
-            POWER_WATT,
-        )
-    )
-    sensors.append(
-        PowerConsumption(
-            "fechaPeriodo",
-            manager.config_entry.data["consumption"]["fechaPeriodo"],
+            prefix + "fechaPeriodo",
+            manager.data["consumption"]["fechaPeriodo"],
             ATTR_DATE,
         )
     )
     sensors.append(
         PowerConsumption(
-            "periodoMuestra",
-            manager.config_entry.data["consumption"]["periodoMuestra"],
+            prefix + "periodoMuestra",
+            manager.data["consumption"]["periodoMuestra"],
             ATTR_DATE,
         )
     )
     sensors.append(
         PowerConsumption(
-            "acumuladoCO2",
-            manager.config_entry.data["consumption"]["acumuladoCO2"],
+            prefix + "acumuladoCO2",
+            manager.data["consumption"]["acumuladoCO2"],
             POWER_WATT,
         )
     )
+
+    for key in manager.data["consumption"]["y"]["data"][0]:
+        sensors.append(PowerConsumption(prefix + "diario", key["valor"], POWER_WATT,))
 
     async_add_entities(sensors, True)
 

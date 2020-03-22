@@ -1,0 +1,18 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Iberdrola ya está configurado."
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "username": "Nombre de usuario",
+                    "password": "Contraseña",
+                    "scan_interval": "Frecuencia de actaulizacion"
+                },
+                "title": "Inicia sesión con tu cuenta de Iberdrola"
+            }
+        },
+        "title": "Iberdrola"
+    }
+}

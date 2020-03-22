@@ -21,6 +21,7 @@ class IberdrolaManager:
     def __init__(self, hass, config_entry):
         """Initialize the component state."""
         self.hass = hass
+        self.data = dict()
         self.config_entry = config_entry
         self.interval = config_entry.data.get(CONF_SCAN_INTERVAL)
         self.session = async_get_clientsession(hass)
@@ -40,9 +41,7 @@ class IberdrolaManager:
             if isinstance(resultLogin, tuple) and resultLogin[0] is False:
                 _LOGGER.error(resultLogin[1])
 
-            self.config_entry.data[
-                "consumption"
-            ] = await self._iberdrola_auth.getConsumptionData()
+            self.data["consumption"] = await self._iberdrola_auth.getConsumptionData()
 
             self.hass.async_add_job(
                 self.hass.config_entries.async_forward_entry_setup(
