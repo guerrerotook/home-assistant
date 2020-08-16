@@ -1363,6 +1363,7 @@ pyforked-daapd==0.1.10
 # homeassistant.components.fritzbox
 pyfritzhome==0.4.2
 
+# homeassistant.components.automatic_solar_panel_hvac
 # homeassistant.components.fronius
 pyfronius==0.4.6
 

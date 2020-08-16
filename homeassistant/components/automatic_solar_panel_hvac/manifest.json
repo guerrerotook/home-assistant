@@ -1,0 +1,8 @@
+{
+    "domain": "automatic_solar_panel_hvac",
+    "name": "Automatic Solar Panel Hvac",
+    "documentation": "https://github.com/guerrerotook",
+    "dependencies": ["configurator", "vera"],
+    "codeowners": ["@guerrerotook"],
+    "requirements": ["pyfronius==0.4.6"]
+  }
