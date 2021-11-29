@@ -786,7 +786,7 @@ tests/components/screenlogic/* @dieselrabbit @bdraco
 homeassistant/components/script/* @home-assistant/core
 tests/components/script/* @home-assistant/core
 homeassistant/components/search/* @home-assistant/core
-tests/components/search/* @home-assistant/core
+homeassistant/components/securitas_direct/* @guerrerotook
 homeassistant/components/select/* @home-assistant/core
 tests/components/select/* @home-assistant/core
 homeassistant/components/sense/* @kbickar
