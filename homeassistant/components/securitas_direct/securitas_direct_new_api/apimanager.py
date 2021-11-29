@@ -1,7 +1,6 @@
 """Securitas Direct API implementation."""
 from datetime import datetime
 import json
-import logging
 from typing import List, Tuple
 
 import requests
@@ -9,10 +8,9 @@ from requests.adapters import HTTPAdapter
 from requests.models import Response
 from urllib3 import Retry
 
-from .dataTypes import ArmStatus, ArmType, CheckAlarmStatus, DisarmStatus, Installation
+from .dataTypes import ArmStatus, ArmType, CheckAlarmStatus, Installation
 
 API_URL = "https://customers.securitasdirect.es/owa-api/graphql"
-_LOGGER = logging.getLogger(__name__)
 
 
 class ApiManager:
@@ -41,16 +39,9 @@ class ApiManager:
             }
             headers = {"auth": json.dumps(authorization_value)}
 
-        _LOGGER.debug(content)
-        response: Response = self._createRequestSession().post(
+        return self._createRequestSession().post(
             API_URL, headers=headers, json=content, cookies=self.jar
         )
-        _LOGGER.debug(response.text)
-        errorLogin: bool = self._checkErrros(response.text)
-        if errorLogin:
-            return self._executeRequest(content)
-
-        return response
 
     def _createRequestSession(self) -> requests.Session:
         if not self.session:
@@ -74,28 +65,6 @@ class ApiManager:
             + str(current.minute)
             + str(current.microsecond)
         )
-
-    def _checkErrros(self, value: str) -> bool:
-        if value is not None:
-            response = json.loads(value)
-            if hasattr(response, "errors"):
-                for errorItem in response["errors"]:
-                    if hasattr(errorItem, "message"):
-                        if errorItem["message"] == "Invalid token: Expired":
-                            _LOGGER.info("Login is expired. Login again.")
-                            return self.login()[0]
-                        else:
-                            _LOGGER.error(errorItem["message"])
-        return False
-
-    def logout(self):
-        """Logout."""
-        content = {
-            "operationName": "Logout",
-            "variables": {},
-            "query": "mutation Logout {\n  xSLogout\n}\n",
-        }
-        self._executeRequest(content)
 
     def login(self) -> Tuple[bool, str]:
         """Login."""
@@ -202,17 +171,15 @@ class ApiManager:
                 raw_data["protomResponseDate"],
             )
 
-    def armAlarm(
-        self, Installation: Installation, mode: str, currentStatus: str
-    ) -> Tuple[bool, str]:
-        """Arms the alarm in the specified mode."""
+    def armAlarmTotal(self, Installation: Installation) -> Tuple[bool, str]:
+        """Arms the alarm in total mode."""
         content = {
             "operationName": "xSArmPanel",
             "variables": {
-                "request": mode,
+                "request": "ARM1",
                 "numinst": str(Installation.number),
                 "panel": Installation.panel,
-                "currentStatus": currentStatus,
+                "currentStatus": "D",
             },
             "query": "mutation xSArmPanel($numinst: String!, $request: ArmCodeRequest!, $panel: String!, $pin: String, $currentStatus: String) {\n  xSArmPanel(numinst: $numinst, request: $request, panel: $panel, pin: $pin, currentStatus: $currentStatus) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
@@ -228,23 +195,18 @@ class ApiManager:
                 return (False, result_json["data"]["xSArmPanel"]["msg"])
 
     def checkArmStatus(
-        self,
-        Installation: Installation,
-        referenceId: str,
-        mode: str,
-        counter: int,
-        currentStatus: str,
+        self, Installation: Installation, referenceId: str, armType: ArmType
     ) -> ArmStatus:
         """Check progress of the alarm."""
         content = {
             "operationName": "ArmStatus",
             "variables": {
-                "request": mode,
+                "request": "ARM" + str(armType),
                 "numinst": str(Installation.number),
                 "panel": Installation.panel,
-                "currentStatus": currentStatus,
+                "currentStatus": "D",
                 "referenceId": referenceId,
-                "counter": counter,
+                "counter": 1,
             },
             "query": "query ArmStatus($numinst: String!, $request: ArmCodeRequest, $panel: String!, $referenceId: String!, $counter: Int!) {\n  xSArmStatus(numinst: $numinst, panel: $panel, referenceId: $referenceId, counter: $counter, request: $request) {\n    res\n    msg\n    status\n    protomResponse\n    protomResponseDate\n    numinst\n    requestId\n    error {\n      code\n      type\n      allowForcing\n      exceptionsNumber\n      referenceId\n    }\n  }\n}\n",
         }
@@ -266,9 +228,7 @@ class ApiManager:
                 raw_data["error"],
             )
 
-    def disarmAlarm(
-        self, Installation: Installation, currentStatus: str
-    ) -> Tuple[bool, str]:
+    def disarmAlarm(self, Installation: Installation) -> Tuple[bool, str]:
         """Disarm the alarm."""
         content = {
             "operationName": "xSDisarmPanel",
@@ -276,7 +236,7 @@ class ApiManager:
                 "request": "DARM1",
                 "numinst": str(Installation.number),
                 "panel": Installation.panel,
-                "currentStatus": currentStatus,
+                "currentStatus": "T",
             },
             "query": "mutation xSDisarmPanel($numinst: String!, $request: DisarmCodeRequest!, $panel: String!, $pin: String) {\n  xSDisarmPanel(numinst: $numinst, request: $request, panel: $panel, pin: $pin) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
@@ -290,42 +250,3 @@ class ApiManager:
                 return (True, result_json["data"]["xSDisarmPanel"]["referenceId"])
             else:
                 return (False, result_json["data"]["xSDisarmPanel"]["msg"])
-
-    def checkDisarmStatus(
-        self,
-        Installation: Installation,
-        referenceId: str,
-        armType: ArmType,
-        counter: int,
-        currentStatus: str,
-    ) -> DisarmStatus:
-        """Check progress of the alarm."""
-        content = {
-            "operationName": "DisarmStatus",
-            "variables": {
-                "request": "DARM" + str(armType.value),
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
-                "currentStatus": currentStatus,
-                "referenceId": referenceId,
-                "counter": counter,
-            },
-            "query": "query DisarmStatus($numinst: String!, $panel: String!, $referenceId: String!, $counter: Int!, $request: DisarmCodeRequest) {\n  xSDisarmStatus(numinst: $numinst, panel: $panel, referenceId: $referenceId, counter: $counter, request: $request) {\n    res\n    msg\n    status\n    protomResponse\n    protomResponseDate\n    numinst\n    requestId\n    error {\n      code\n      type\n      allowForcing\n      exceptionsNumber\n      referenceId\n    }\n  }\n}\n",
-        }
-        response = self._executeRequest(content)
-        result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
-            error_message = result_json["errors"][0]["message"]
-            return error_message
-        else:
-            raw_data = result_json["data"]["xSDisarmStatus"]
-            return DisarmStatus(
-                raw_data["error"],
-                raw_data["msg"],
-                raw_data["numinst"],
-                raw_data["protomResponse"],
-                raw_data["protomResponseDate"],
-                raw_data["requestId"],
-                raw_data["res"],
-                raw_data["status"],
-            )

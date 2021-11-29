@@ -1,7 +1,6 @@
 """Support for Securitas Direct (AKA Verisure EU) alarm control panels."""
 
 import datetime
-from datetime import timedelta
 import logging
 from time import sleep
 
@@ -23,18 +22,12 @@ from homeassistant.const import (  # STATE_UNAVAILABLE,; STATE_UNKNOWN,
     STATE_ALARM_TRIGGERED,
 )
 
-from . import CONF_ALARM, CONF_CODE_DIGITS, HUB as hub
-from .securitas_direct_new_api.dataTypes import (
-    ArmStatus,
-    ArmType,
-    CheckAlarmStatus,
-    Installation,
-)
+from . import CONF_ALARM, HUB as hub
+from .securitas_direct_new_api.dataTypes import CheckAlarmStatus, Installation
 
 # from securitas import SecuritasAPIClient
 
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(seconds=60)
 
 # some reported by @furetto72@Italy
 SECURITAS_STATUS = {
@@ -52,14 +45,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     alarms = []
     if int(hub.config.get(CONF_ALARM, 1)):
         for item in hub.Installations:
-            current_state: CheckAlarmStatus = hub.update_overview(
-                item, no_throttle=True
-            )
-            alarms.append(
-                SecuritasAlarm(
-                    item, state=current_state, digits=hub.config.get(CONF_CODE_DIGITS)
-                )
-            )
+            current_state: CheckAlarmStatus = hub.update_overview(item)
+            alarms.append(SecuritasAlarm(item, state=current_state))
     add_entities(alarms)
 
 
@@ -74,26 +61,26 @@ def set_arm_state(state, code=None):
 class SecuritasAlarm(alarm.AlarmControlPanelEntity):
     """Representation of a Securitas alarm status."""
 
-    def __init__(
-        self, Installation: Installation, state: CheckAlarmStatus, digits: int
-    ) -> None:
+    def __init__(self, Installation: Installation, state: CheckAlarmStatus) -> None:
         """Initialize the Securitas alarm panel."""
         self._state: str = STATE_ALARM_DISARMED
-        self._last_status: str = STATE_ALARM_DISARMED
-        self._digits: int = digits
+        # self._digits: int = hub.config.get(CONF_CODE_DIGITS)
         self._changed_by = None
         self._device = Installation.address
         self.entity_id = f"securitas_direct.{Installation.number}"
-        self._attr_unique_id = f"securitas_direct.{Installation.number}"
-        self._time: datetime.datetime = datetime.datetime.now()
+        self._time: datetime.datetime
         self._message = ""
         self.Installation = Installation
-        self.update_status_alarm(state)
+        self.update(state)
 
     def __force_state(self, state):
-        self._last_status = self._state
         self._state = state
         self.hass.states.set(self.entity_id, state)
+
+    def __arm_state(self, state):
+        res = hub.session.api_call(state)
+        _LOGGER.debug("Securitas: setting arm state: %s\nres=%s", state, res)
+        return res
 
     def get_arm_state(self):
         """Get alarm state."""
@@ -107,55 +94,24 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
             alarmStatus: CheckAlarmStatus = hub.session.checkAlarmStatus(
                 self.Installation, referenceId
             )
+        # res = self.__arm_state("EST")
+        # if hub.session._is_ok(res):
+        #     for k, v in SECURITAS_STATUS.items():
+        #         if res["PET"]["STATUS"] in v[0]:
+        #             return k
 
     def set_arm_state(self, state, attempts=3):
         """Send set arm state command."""
-        if state == "DARM1":
-            response = hub.session.disarmAlarm(
-                self.Installation, self._getProtoStatus()
-            )
-            if response[0]:
-                # check arming status
-                sleep(1)
-                count = 1
-                armStatus: ArmStatus = hub.session.checkDisarmStatus(
-                    self.Installation,
-                    response[1],
-                    ArmType.TOTAL,
-                    count,
-                    self._getProtoStatus(),
-                )
-                while armStatus.status == "WAIT":
-                    count = count + 1
-                    sleep(1)
-                    armStatus = hub.session.checkDisarmStatus(
-                        self.Installation, response[1], ArmType.TOTAL, count
-                    )
-                self._state = STATE_ALARM_DISARMED
+        for i in range(attempts):
+            res = self.__arm_state(state)
+            if hub.session._is_ok(res):
+                break
             else:
-                _LOGGER.error(response[1])
-        else:
-            response = hub.session.armAlarm(
-                self.Installation, state, self._getProtoStatus()
-            )
-            if response[0]:
-                # check arming status
-                sleep(1)
-                count = 1
-                armStatus: ArmStatus = hub.session.checkArmStatus(
-                    self.Installation, response[1], state, count, self._getProtoStatus()
-                )
-                while armStatus.status == "WAIT":
-                    count = count + 1
-                    sleep(1)
-                    armStatus = hub.session.checkArmStatus(
-                        self.Installation, response[1], ArmType.TOTAL, count
-                    )
-                self._state = STATE_ALARM_ARMED_AWAY
-            else:
-                _LOGGER.error(response[1])
-        self.schedule_update_ha_state()
-        # hub.update_overview(no_throttle=True)
+                _LOGGER.warning("Securitas: disarming (res=%s)", res)
+                self.__arm_state("DARM")
+                sleep(i * 2 + 1)
+        sleep(2)
+        hub.update_overview(no_throttle=True)
 
     @property
     def name(self):
@@ -182,20 +138,11 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
         """Return the last change triggered by."""
         return self._changed_by
 
-    def _getProtoStatus(self) -> str:
-        if self._last_status == STATE_ALARM_DISARMED:
-            return "D"
-        elif self._last_status == STATE_ALARM_ARMED_AWAY:
-            return "T"
-        elif self._last_status == STATE_ALARM_ARMED_NIGHT:
-            return "Q"
-        elif self._last_status == STATE_ALARM_ARMED_HOME:
-            return "P"
-        else:
-            return "D"
-
-    def update_status_alarm(self, status: CheckAlarmStatus = None):
+    def update(self, status: CheckAlarmStatus = None):
         """Update alarm status, from last alarm setting register or EST."""
+        # if status is None:
+        #     status = hub.update_overview(self.Installation)
+
         if status is not None:
             self._message = status.message
             self._time = datetime.datetime.fromisoformat(status.protomResponseData)
@@ -204,38 +151,58 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
                 self._state = STATE_ALARM_DISARMED
             elif status.protomResponse == "T":
                 self._state = STATE_ALARM_ARMED_AWAY
-            elif status.protomResponse == "Q":
-                self._state = STATE_ALARM_ARMED_NIGHT
-            elif status.protomResponse == "P":
-                self._state = STATE_ALARM_ARMED_HOME
 
-    def update(self):
-        """Update the status of the alarm based on the configuration."""
-        alarmStatus: CheckAlarmStatus = hub.update_overview(
-            self.Installation, no_throttle=True
-        )
-        self.update_status_alarm(alarmStatus)
+            # for k, v in SECURITAS_STATUS.items():
+            #     if status["@type"] in v[1]:
+            #         self._state = k
+            #         self._changed_by = (
+            #             (
+            #                 status["@user"]
+            #                 if "@user" in status
+            #                 else status["@myverisureUser"]
+            #                 if "@myverisureUser" in status
+            #                 else ""
+            #             )
+            #             + "@"
+            #             + status["@source"]
+            #         )
+            #         self._device = status["@device"]
+            #         self._time = datetime.datetime.strptime(
+            #             status["@time"], "%y%m%d%H%M%S"
+            #         )
+            #         self._message = status["@alias"]
+            #         break
+
+    @property
+    def device_state_attributes(self):
+        """Return the state attributes."""
+        return {
+            "device": self._device,
+            "time": self._time,
+            "message": self._message,
+            "alias": self.Installation.alias,
+        }
 
     def alarm_disarm(self, code=None):
         """Send disarm command."""
         if hub.config.get(CONF_CODE, "") == "" or hub.config.get(CONF_CODE, "") == code:
             self.__force_state(STATE_ALARM_DISARMING)
-            self.set_arm_state("DARM1")
+            self.set_arm_state("DARM")
 
     def alarm_arm_home(self, code=None):
         """Send arm home command."""
         self.__force_state(STATE_ALARM_ARMING)
-        self.set_arm_state("ARMDAY1")
+        self.set_arm_state("ARMDAY")
 
     def alarm_arm_away(self, code=None):
         """Send arm away command."""
         self.__force_state(STATE_ALARM_ARMING)
-        self.set_arm_state("ARM1")
+        self.set_arm_state("ARM")
 
     def alarm_arm_night(self, code=None):
         """Send arm home command."""
         self.__force_state(STATE_ALARM_ARMING)
-        self.set_arm_state("ARMNIGHT1")
+        self.set_arm_state("ARMNIGHT")
 
     def alarm_arm_custom_bypass(self, code=None):
         """Send arm perimeter command."""
@@ -245,9 +212,4 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
     @property
     def supported_features(self) -> int:
         """Return the list of supported features."""
-        return (
-            SUPPORT_ALARM_ARM_HOME
-            | SUPPORT_ALARM_ARM_AWAY
-            | SUPPORT_ALARM_ARM_NIGHT
-            | SUPPORT_ALARM_ARM_HOME
-        )
+        return SUPPORT_ALARM_ARM_HOME | SUPPORT_ALARM_ARM_AWAY | SUPPORT_ALARM_ARM_NIGHT
