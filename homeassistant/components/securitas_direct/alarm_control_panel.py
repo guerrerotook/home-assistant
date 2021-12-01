@@ -34,7 +34,7 @@ from .securitas_direct_new_api.dataTypes import (
 # from securitas import SecuritasAPIClient
 
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(seconds=300)
+SCAN_INTERVAL = timedelta(seconds=60)
 
 # some reported by @furetto72@Italy
 SECURITAS_STATUS = {
@@ -211,7 +211,9 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
 
     def update(self):
         """Update the status of the alarm based on the configuration."""
-        alarmStatus: CheckAlarmStatus = hub.update_overview(self.Installation)
+        alarmStatus: CheckAlarmStatus = hub.update_overview(
+            self.Installation, no_throttle=True
+        )
         self.update_status_alarm(alarmStatus)
 
     def alarm_disarm(self, code=None):
