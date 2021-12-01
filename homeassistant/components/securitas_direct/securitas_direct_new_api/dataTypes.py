@@ -35,7 +35,7 @@ class CheckAlarmStatus:
 
 @dataclass
 class ArmStatus:
-    """Define an Securitas Direct Arm Alarm Status Operation."""
+    """Define a Securitas Direct Arm Alarm Status Operation."""
 
     operationStatus: str
     message: str
@@ -45,6 +45,20 @@ class ArmStatus:
     protomResponseData: str
     requestId: str
     error: str
+
+
+@dataclass
+class DisarmStatus:
+    """Define a Securitas Direct Disarm Alarm Status Operation."""
+
+    error: str
+    message: str
+    numinst: str
+    protomResponse: str
+    protomResponseData: str
+    requestId: str
+    operationStatus: str
+    status: str
 
 
 class ArmType(Enum):

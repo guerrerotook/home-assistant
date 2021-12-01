@@ -1,6 +1,7 @@
 """Securitas Direct API implementation."""
 from datetime import datetime
 import json
+import logging
 from typing import List, Tuple
 
 import requests
@@ -8,9 +9,10 @@ from requests.adapters import HTTPAdapter
 from requests.models import Response
 from urllib3 import Retry
 
-from .dataTypes import ArmStatus, ArmType, CheckAlarmStatus, Installation
+from .dataTypes import ArmStatus, ArmType, CheckAlarmStatus, DisarmStatus, Installation
 
 API_URL = "https://customers.securitasdirect.es/owa-api/graphql"
+_LOGGER = logging.getLogger(__name__)
 
 
 class ApiManager:
@@ -39,9 +41,12 @@ class ApiManager:
             }
             headers = {"auth": json.dumps(authorization_value)}
 
-        return self._createRequestSession().post(
+        response: Response = self._createRequestSession().post(
             API_URL, headers=headers, json=content, cookies=self.jar
         )
+
+        self._checkErrros(response.text)
+        return response
 
     def _createRequestSession(self) -> requests.Session:
         if not self.session:
@@ -65,6 +70,14 @@ class ApiManager:
             + str(current.minute)
             + str(current.microsecond)
         )
+
+    def _checkErrros(self, value: str):
+        if value is not None:
+            response = json.loads(value)
+            if hasattr(response, "errors"):
+                for errorItem in response["errors"]:
+                    if hasattr(errorItem, "message"):
+                        _LOGGER.error(errorItem["message"])
 
     def login(self) -> Tuple[bool, str]:
         """Login."""
@@ -171,15 +184,17 @@ class ApiManager:
                 raw_data["protomResponseDate"],
             )
 
-    def armAlarmTotal(self, Installation: Installation) -> Tuple[bool, str]:
-        """Arms the alarm in total mode."""
+    def armAlarm(
+        self, Installation: Installation, mode: str, currentStatus: str
+    ) -> Tuple[bool, str]:
+        """Arms the alarm in the specified mode."""
         content = {
             "operationName": "xSArmPanel",
             "variables": {
-                "request": "ARM1",
+                "request": mode,
                 "numinst": str(Installation.number),
                 "panel": Installation.panel,
-                "currentStatus": "D",
+                "currentStatus": currentStatus,
             },
             "query": "mutation xSArmPanel($numinst: String!, $request: ArmCodeRequest!, $panel: String!, $pin: String, $currentStatus: String) {\n  xSArmPanel(numinst: $numinst, request: $request, panel: $panel, pin: $pin, currentStatus: $currentStatus) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
@@ -195,18 +210,23 @@ class ApiManager:
                 return (False, result_json["data"]["xSArmPanel"]["msg"])
 
     def checkArmStatus(
-        self, Installation: Installation, referenceId: str, armType: ArmType
+        self,
+        Installation: Installation,
+        referenceId: str,
+        mode: str,
+        counter: int,
+        currentStatus: str,
     ) -> ArmStatus:
         """Check progress of the alarm."""
         content = {
             "operationName": "ArmStatus",
             "variables": {
-                "request": "ARM" + str(armType),
+                "request": mode,
                 "numinst": str(Installation.number),
                 "panel": Installation.panel,
-                "currentStatus": "D",
+                "currentStatus": currentStatus,
                 "referenceId": referenceId,
-                "counter": 1,
+                "counter": counter,
             },
             "query": "query ArmStatus($numinst: String!, $request: ArmCodeRequest, $panel: String!, $referenceId: String!, $counter: Int!) {\n  xSArmStatus(numinst: $numinst, panel: $panel, referenceId: $referenceId, counter: $counter, request: $request) {\n    res\n    msg\n    status\n    protomResponse\n    protomResponseDate\n    numinst\n    requestId\n    error {\n      code\n      type\n      allowForcing\n      exceptionsNumber\n      referenceId\n    }\n  }\n}\n",
         }
@@ -228,7 +248,9 @@ class ApiManager:
                 raw_data["error"],
             )
 
-    def disarmAlarm(self, Installation: Installation) -> Tuple[bool, str]:
+    def disarmAlarm(
+        self, Installation: Installation, currentStatus: str
+    ) -> Tuple[bool, str]:
         """Disarm the alarm."""
         content = {
             "operationName": "xSDisarmPanel",
@@ -236,7 +258,7 @@ class ApiManager:
                 "request": "DARM1",
                 "numinst": str(Installation.number),
                 "panel": Installation.panel,
-                "currentStatus": "T",
+                "currentStatus": currentStatus,
             },
             "query": "mutation xSDisarmPanel($numinst: String!, $request: DisarmCodeRequest!, $panel: String!, $pin: String) {\n  xSDisarmPanel(numinst: $numinst, request: $request, panel: $panel, pin: $pin) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
@@ -250,3 +272,42 @@ class ApiManager:
                 return (True, result_json["data"]["xSDisarmPanel"]["referenceId"])
             else:
                 return (False, result_json["data"]["xSDisarmPanel"]["msg"])
+
+    def checkDisarmStatus(
+        self,
+        Installation: Installation,
+        referenceId: str,
+        armType: ArmType,
+        counter: int,
+        currentStatus: str,
+    ) -> DisarmStatus:
+        """Check progress of the alarm."""
+        content = {
+            "operationName": "DisarmStatus",
+            "variables": {
+                "request": "DARM" + str(armType.value),
+                "numinst": str(Installation.number),
+                "panel": Installation.panel,
+                "currentStatus": currentStatus,
+                "referenceId": referenceId,
+                "counter": counter,
+            },
+            "query": "query DisarmStatus($numinst: String!, $panel: String!, $referenceId: String!, $counter: Int!, $request: DisarmCodeRequest) {\n  xSDisarmStatus(numinst: $numinst, panel: $panel, referenceId: $referenceId, counter: $counter, request: $request) {\n    res\n    msg\n    status\n    protomResponse\n    protomResponseDate\n    numinst\n    requestId\n    error {\n      code\n      type\n      allowForcing\n      exceptionsNumber\n      referenceId\n    }\n  }\n}\n",
+        }
+        response = self._executeRequest(content)
+        result_json = json.loads(response.text)
+        if hasattr(result_json, "errors"):
+            error_message = result_json["errors"][0]["message"]
+            return error_message
+        else:
+            raw_data = result_json["data"]["xSDisarmStatus"]
+            return DisarmStatus(
+                raw_data["error"],
+                raw_data["msg"],
+                raw_data["numinst"],
+                raw_data["protomResponse"],
+                raw_data["protomResponseDate"],
+                raw_data["requestId"],
+                raw_data["res"],
+                raw_data["status"],
+            )
