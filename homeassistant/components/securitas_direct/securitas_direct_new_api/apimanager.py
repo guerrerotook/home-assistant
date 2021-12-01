@@ -41,10 +41,11 @@ class ApiManager:
             }
             headers = {"auth": json.dumps(authorization_value)}
 
+        _LOGGER.debug(content)
         response: Response = self._createRequestSession().post(
             API_URL, headers=headers, json=content, cookies=self.jar
         )
-
+        _LOGGER.debug(response.text)
         self._checkErrros(response.text)
         return response
 
