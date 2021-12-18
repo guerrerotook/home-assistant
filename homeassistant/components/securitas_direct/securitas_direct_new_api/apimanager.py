@@ -10,8 +10,8 @@ from requests.models import Response
 from urllib3 import Retry
 
 from .dataTypes import ArmStatus, ArmType, CheckAlarmStatus, DisarmStatus, Installation
+from .domains import ApiDomains
 
-API_URL = "https://customers.securitasdirect.es/owa-api/graphql"
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -24,6 +24,7 @@ class ApiManager:
         self.password = password
         self.country = country
         self.language = language
+        self.api_url = ApiDomains().get_url(language=language)
         self.session = None
         self.authentication_token = None
         self.jar = requests.cookies.RequestsCookieJar()
@@ -43,7 +44,7 @@ class ApiManager:
 
         _LOGGER.debug(content)
         response: Response = self._createRequestSession().post(
-            API_URL, headers=headers, json=content, cookies=self.jar
+            self.api_url, headers=headers, json=content, cookies=self.jar
         )
         _LOGGER.debug(response.text)
         errorLogin: bool = self._checkErrros(response.text)
@@ -78,10 +79,11 @@ class ApiManager:
     def _checkErrros(self, value: str) -> bool:
         if value is not None:
             response = json.loads(value)
-            if hasattr(response, "errors"):
+            if "errors" in response:
                 for errorItem in response["errors"]:
-                    if hasattr(errorItem, "message"):
+                    if "message" in errorItem:
                         if errorItem["message"] == "Invalid token: Expired":
+                            self.authentication_token = None
                             _LOGGER.info("Login is expired. Login again.")
                             return self.login()[0]
                         else:
