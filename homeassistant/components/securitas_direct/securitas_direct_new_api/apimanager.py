@@ -29,12 +29,12 @@ class ApiManager:
         self.authentication_token = None
         self.jar = requests.cookies.RequestsCookieJar()
 
-    def _executeRequest(self, content) -> Response:
+    def _execute_request(self, content) -> Response:
         headers = None
         if self.authentication_token is not None:
             authorization_value = {
                 "user": self.username,
-                "id": self._generateId(),
+                "id": self._generate_id(),
                 "country": self.country,
                 "lang": self.language,
                 "callby": "OWP_10",
@@ -43,17 +43,17 @@ class ApiManager:
             headers = {"auth": json.dumps(authorization_value)}
 
         _LOGGER.debug(content)
-        response: Response = self._createRequestSession().post(
+        response: Response = self._create_request_session().post(
             self.api_url, headers=headers, json=content, cookies=self.jar
         )
         _LOGGER.debug(response.text)
-        errorLogin: bool = self._checkErrros(response.text)
+        errorLogin: bool = self._check_errros(response.text)
         if errorLogin:
-            return self._executeRequest(content)
+            return self._execute_request(content)
 
         return response
 
-    def _createRequestSession(self) -> requests.Session:
+    def _create_request_session(self) -> requests.Session:
         if not self.session:
             self.session = requests.session()
             self.session.mount(
@@ -62,7 +62,7 @@ class ApiManager:
 
         return self.session
 
-    def _generateId(self) -> str:
+    def _generate_id(self) -> str:
         current: datetime = datetime.now()
         return (
             "OWP_______________"
@@ -76,7 +76,7 @@ class ApiManager:
             + str(current.microsecond)
         )
 
-    def _checkErrros(self, value: str) -> bool:
+    def _check_errros(self, value: str) -> bool:
         if value is not None:
             response = json.loads(value)
             if "errors" in response:
@@ -97,14 +97,14 @@ class ApiManager:
             "variables": {},
             "query": "mutation Logout {\n  xSLogout\n}\n",
         }
-        self._executeRequest(content)
+        self._execute_request(content)
 
     def login(self) -> Tuple[bool, str]:
         """Login."""
         content = {
             "operationName": "LoginToken",
             "variables": {
-                "id": self._generateId(),
+                "id": self._generate_id(),
                 "country": self.country,
                 "callby": "OWP_10",
                 "lang": self.language,
@@ -113,7 +113,7 @@ class ApiManager:
             },
             "query": "mutation LoginToken($user: String!, $password: String!, $id: String!, $country: String!, $lang: String!, $callby: String!) {\n  xSLoginToken(user: $user, password: $password, id: $id, country: $country, lang: $lang, callby: $callby) {\n    res\n    msg\n    hash\n    lang\n    legals\n    mainUser\n    changePassword\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -122,13 +122,13 @@ class ApiManager:
             self.authentication_token = result_json["data"]["xSLoginToken"]["hash"]
             return (True, "None")
 
-    def listInstallations(self) -> List[Installation]:
+    def list_installations(self) -> List[Installation]:
         """List securitas direct installations."""
         content = {
             "operationName": "InstallationList",
             "query": "query InstallationList {\n  xSInstallations {\n    installations {\n      numinst\n      alias\n      panel\n      type\n      name\n      surname\n      address\n      city\n      postcode\n      province\n      email\n      phone\n    }\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -155,17 +155,17 @@ class ApiManager:
                 result.append(InstallationItem)
             return result
 
-    def checkAlarm(self, Installation: Installation) -> str:
+    def check_alarm(self, installation: Installation) -> str:
         """Check status of the alarm."""
         content = {
             "operationName": "CheckAlarm",
             "variables": {
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
+                "numinst": str(installation.number),
+                "panel": installation.panel,
             },
             "query": "query CheckAlarm($numinst: String!, $panel: String!) {\n  xSCheckAlarm(numinst: $numinst, panel: $panel) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -173,22 +173,22 @@ class ApiManager:
         else:
             return result_json["data"]["xSCheckAlarm"]["referenceId"]
 
-    def checkAlarmStatus(
-        self, Installation: Installation, referenceId: str
+    def check_alarm_status(
+        self, installation: Installation, referenceId: str
     ) -> CheckAlarmStatus:
         """Check status of the operation check alarm."""
         content = {
             "operationName": "CheckAlarmStatus",
             "variables": {
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
+                "numinst": str(installation.number),
+                "panel": installation.panel,
                 "referenceId": referenceId,
                 "idService": "11",
                 "counter": 2,
             },
             "query": "query CheckAlarmStatus($numinst: String!, $idService: String!, $panel: String!, $referenceId: String!) {\n  xSCheckAlarmStatus(numinst: $numinst, idService: $idService, panel: $panel, referenceId: $referenceId) {\n    res\n    msg\n    status\n    numinst\n    protomResponse\n    protomResponseDate\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -204,21 +204,21 @@ class ApiManager:
                 raw_data["protomResponseDate"],
             )
 
-    def armAlarm(
-        self, Installation: Installation, mode: str, currentStatus: str
+    def arm_alarm(
+        self, installation: Installation, mode: str, currentStatus: str
     ) -> Tuple[bool, str]:
         """Arms the alarm in the specified mode."""
         content = {
             "operationName": "xSArmPanel",
             "variables": {
                 "request": mode,
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
+                "numinst": str(installation.number),
+                "panel": installation.panel,
                 "currentStatus": currentStatus,
             },
             "query": "mutation xSArmPanel($numinst: String!, $request: ArmCodeRequest!, $panel: String!, $pin: String, $currentStatus: String) {\n  xSArmPanel(numinst: $numinst, request: $request, panel: $panel, pin: $pin, currentStatus: $currentStatus) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -229,9 +229,9 @@ class ApiManager:
             else:
                 return (False, result_json["data"]["xSArmPanel"]["msg"])
 
-    def checkArmStatus(
+    def check_arm_status(
         self,
-        Installation: Installation,
+        installation: Installation,
         referenceId: str,
         mode: str,
         counter: int,
@@ -242,15 +242,15 @@ class ApiManager:
             "operationName": "ArmStatus",
             "variables": {
                 "request": mode,
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
+                "numinst": str(installation.number),
+                "panel": installation.panel,
                 "currentStatus": currentStatus,
                 "referenceId": referenceId,
                 "counter": counter,
             },
             "query": "query ArmStatus($numinst: String!, $request: ArmCodeRequest, $panel: String!, $referenceId: String!, $counter: Int!) {\n  xSArmStatus(numinst: $numinst, panel: $panel, referenceId: $referenceId, counter: $counter, request: $request) {\n    res\n    msg\n    status\n    protomResponse\n    protomResponseDate\n    numinst\n    requestId\n    error {\n      code\n      type\n      allowForcing\n      exceptionsNumber\n      referenceId\n    }\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -268,21 +268,21 @@ class ApiManager:
                 raw_data["error"],
             )
 
-    def disarmAlarm(
-        self, Installation: Installation, currentStatus: str
+    def disarm_alarm(
+        self, installation: Installation, currentStatus: str
     ) -> Tuple[bool, str]:
         """Disarm the alarm."""
         content = {
             "operationName": "xSDisarmPanel",
             "variables": {
                 "request": "DARM1",
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
+                "numinst": str(installation.number),
+                "panel": installation.panel,
                 "currentStatus": currentStatus,
             },
             "query": "mutation xSDisarmPanel($numinst: String!, $request: DisarmCodeRequest!, $panel: String!, $pin: String) {\n  xSDisarmPanel(numinst: $numinst, request: $request, panel: $panel, pin: $pin) {\n    res\n    msg\n    referenceId\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
@@ -293,9 +293,9 @@ class ApiManager:
             else:
                 return (False, result_json["data"]["xSDisarmPanel"]["msg"])
 
-    def checkDisarmStatus(
+    def check_disarm_status(
         self,
-        Installation: Installation,
+        installation: Installation,
         referenceId: str,
         armType: ArmType,
         counter: int,
@@ -306,15 +306,15 @@ class ApiManager:
             "operationName": "DisarmStatus",
             "variables": {
                 "request": "DARM" + str(armType.value),
-                "numinst": str(Installation.number),
-                "panel": Installation.panel,
+                "numinst": str(installation.number),
+                "panel": installation.panel,
                 "currentStatus": currentStatus,
                 "referenceId": referenceId,
                 "counter": counter,
             },
             "query": "query DisarmStatus($numinst: String!, $panel: String!, $referenceId: String!, $counter: Int!, $request: DisarmCodeRequest) {\n  xSDisarmStatus(numinst: $numinst, panel: $panel, referenceId: $referenceId, counter: $counter, request: $request) {\n    res\n    msg\n    status\n    protomResponse\n    protomResponseDate\n    numinst\n    requestId\n    error {\n      code\n      type\n      allowForcing\n      exceptionsNumber\n      referenceId\n    }\n  }\n}\n",
         }
-        response = self._executeRequest(content)
+        response = self._execute_request(content)
         result_json = json.loads(response.text)
         if hasattr(result_json, "errors"):
             error_message = result_json["errors"][0]["message"]
