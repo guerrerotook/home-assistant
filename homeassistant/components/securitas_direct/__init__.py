@@ -87,7 +87,7 @@ class SecuritasHub:
             country=country,
             language=lang,
         )
-        self.Installations: List[Installation] = []
+        self.installations: List[Installation] = []
 
     def login(self):
         """Login to Securitas."""
@@ -96,7 +96,9 @@ class SecuritasHub:
         if not succeed[0]:
             _LOGGER.error("Could not log in to Securitas: %s", succeed[1])
             return False
-        self.Installations = self.session.listInstallations()
+        self.installations = self.session.list_installations()
+        for installation in self.installations:
+            self.session.get_all_services(installation)
         return True
 
     def logout(self):
