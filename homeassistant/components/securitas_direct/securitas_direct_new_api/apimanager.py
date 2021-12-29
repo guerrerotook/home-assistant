@@ -9,7 +9,15 @@ from requests.adapters import HTTPAdapter
 from requests.models import Response
 from urllib3 import Retry
 
-from .dataTypes import ArmStatus, ArmType, CheckAlarmStatus, DisarmStatus, Installation
+from .dataTypes import (
+    ArmStatus,
+    ArmType,
+    CheckAlarmStatus,
+    DisarmStatus,
+    Installation,
+    Service,
+    SStatus,
+)
 from .domains import ApiDomains
 
 _LOGGER = logging.getLogger(__name__)
@@ -172,6 +180,43 @@ class ApiManager:
             return error_message
         else:
             return result_json["data"]["xSCheckAlarm"]["referenceId"]
+
+    def get_all_services(self, installation: Installation) -> List[Service]:
+        """Get the list of all services available to the user."""
+        content = {
+            "operationName": "Srv",
+            "variables": {"numinst": str(installation.number)},
+            "query": "query Srv($numinst: String!, $uuid: String) {\n  xSSrv(numinst: $numinst, uuid: $uuid) {\n    res\n    msg\n    language\n    installation {\n      id\n      alarm\n      due\n      tracker\n      numinst\n      parentNuminst\n      alias\n      panel\n      line\n      aliasInst\n      name\n      surname\n      address\n      city\n      postcode\n      province\n      email\n      phone\n      sim\n      instIbs\n      timebox\n      dtmf\n      oper\n      services {\n        id\n        idService\n        active\n        visible\n        bde\n        isPremium\n        codOper\n        totalDevice\n        request\n        multipleReq\n        numDevicesMr\n        secretWord\n        minWrapperVersion\n        description\n        loc\n        unprotectActive\n        unprotectDeviceStatus\n        devices {\n          id\n          code\n          numDevices\n          cost\n          type\n          name\n        }\n        camerasArlo {\n          id\n          model\n          connectedToInstallation\n          usedForAlarmVerification\n          offer\n          name\n          locationHint\n          batteryLevel\n          connectivity\n          createdDate\n          modifiedDate\n          latestThumbnailUri\n        }\n        attributes {\n          name\n          attributes {\n            name\n            value\n            active\n          }\n        }\n        listdiy {\n          type\n          idMant\n          state\n          idZone\n          canBeResent\n          guide\n          tutorial\n          name\n          alias\n          intime\n          steps {\n            pos\n            img\n            advice\n            text\n          }\n        }\n        listprompt {\n          idNot\n          text\n          type\n        }\n      }\n      configRepoUser {\n        hasCode\n        pinCodeConf {\n          pinCodeLength\n        }\n        alarmPartitions {\n          id\n          enterStates\n          leaveStates\n        }\n      }\n    }\n  }\n}\n",
+        }
+        response = self._execute_request(content)
+        result_json = json.loads(response.text)
+        if hasattr(result_json, "errors"):
+            error_message = result_json["errors"][0]["message"]
+            return error_message
+        else:
+            result: List[Service] = []
+            raw_data = result_json["data"]["xSSrv"]["installation"]["services"]
+            json_services = json.dumps(raw_data)
+            result = json.loads(json_services)
+            # for item in raw_data:
+            #     result.append(Service())
+            return result
+
+    def check_general_status(self, installation: Installation) -> SStatus:
+        """Check current status of the alarm."""
+        content = {
+            "operationName": "Status",
+            "variables": {"numinst": str(installation.number)},
+            "query": "query Status($numinst: String!) {\n  xSStatus(numinst: $numinst) {\n    status\n    timestampUpdate\n  }\n}\n",
+        }
+        response = self._execute_request(content)
+        result_json = json.loads(response.text)
+        if hasattr(result_json, "errors"):
+            error_message = result_json["errors"][0]["message"]
+            return error_message
+        else:
+            raw_data = result_json["data"]["xSStatus"]["services"]
+            return SStatus(raw_data["status"], raw_data["timestampUpdate"])
 
     def check_alarm_status(
         self, installation: Installation, referenceId: str
