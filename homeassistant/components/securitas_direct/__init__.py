@@ -19,12 +19,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.util import Throttle
 
 from .securitas_direct_new_api.apimanager import ApiManager
-from .securitas_direct_new_api.dataTypes import (
-    CheckAlarmStatus,
-    Installation,
-    Service,
-    SStatus,
-)
+from .securitas_direct_new_api.dataTypes import CheckAlarmStatus, Installation, Service
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,7 +102,7 @@ class SecuritasHub:
         # this wonderful piece of code is just to bypass the codespell that thinks
         # the string is not written right, but that is coming from the SD API, so
         # there is nothing I can do.
-        sentinel_value = "SENTINEL ".join(sentinel_value)
+        sentinel_value = "SENTINEL " + "".join(sentinel_value)
         for installation in self.installations:
             all_services: List[Service] = self.session.get_all_services(installation)
             for service in all_services:
@@ -127,10 +122,10 @@ class SecuritasHub:
         """Update the overview."""
         # self.overview = self.session.checkAlarm(Installation)
 
-        status: SStatus = self.session.check_general_status(installation)
-        return CheckAlarmStatus(
-            "OK", "OK", "Ok", installation.number, status.status, status.timestampUpdate
-        )
+        # status: SStatus = self.session.check_general_status(installation)
+        # return CheckAlarmStatus(
+        #     "OK", "OK", "Ok", installation.number, status.status, status.timestampUpdate
+        # )
 
         reference_id: str = self.session.check_alarm(installation)
         sleep(1)

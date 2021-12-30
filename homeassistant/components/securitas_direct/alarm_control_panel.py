@@ -111,7 +111,7 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
     def set_arm_state(self, state, attempts=3):
         """Send set arm state command."""
         if state == "DARM1":
-            response = hub.session.disarmAlarm(
+            response = hub.session.disarm_alarm(
                 self.installation, self._getProtoStatus()
             )
             if response[0]:
