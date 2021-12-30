@@ -12,9 +12,12 @@ from urllib3 import Retry
 from .dataTypes import (
     ArmStatus,
     ArmType,
+    Attribute,
+    Attributes,
     CheckAlarmStatus,
     DisarmStatus,
     Installation,
+    Sentinel,
     Service,
     SStatus,
 )
@@ -123,7 +126,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return (False, error_message)
         else:
@@ -138,7 +141,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             print(error_message)
             return []
@@ -175,7 +178,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
@@ -190,17 +193,83 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
             result: List[Service] = []
             raw_data = result_json["data"]["xSSrv"]["installation"]["services"]
-            json_services = json.dumps(raw_data)
-            result = json.loads(json_services)
-            # for item in raw_data:
-            #     result.append(Service())
+            # json_services = json.dumps(raw_data)
+            # result = json.loads(json_services)
+            for item in raw_data:
+                root_attributes: Attributes = Attributes("", [])
+                if item["attributes"] is not None and "name" in item["attributes"]:
+                    attribute_list: List[Attribute] = []
+                    for attribute_item in item["attributes"]["attributes"]:
+                        attribute_list.append(
+                            Attribute(
+                                attribute_item["name"],
+                                attribute_item["value"],
+                                bool(attribute_item["active"]),
+                            )
+                        )
+                    root_attributes = Attributes(
+                        item["attributes"]["name"], attribute_list
+                    )
+                result.append(
+                    Service(
+                        int(item["id"]),
+                        int(item["idService"]),
+                        bool(item["active"]),
+                        bool(item["visible"]),
+                        bool(item["bde"]),
+                        bool(item["isPremium"]),
+                        bool(item["codOper"]),
+                        int(item["totalDevice"]),
+                        item["request"],
+                        bool(item["multipleReq"]),
+                        int(item["numDevicesMr"]),
+                        bool(item["secretWord"]),
+                        item["minWrapperVersion"],
+                        item["description"],
+                        item["loc"],
+                        bool(item["unprotectActive"]),
+                        item["unprotectDeviceStatus"],
+                        [],
+                        [],
+                        root_attributes,
+                        [],
+                        [],
+                        installation,
+                    )
+                )
             return result
+
+    def get_sentinel_data(
+        self, installation: Installation, service: Service
+    ) -> Sentinel:
+        """Get sentinel status."""
+        content = {
+            "operationName": "Sentinel",
+            "variables": {
+                "numinst": str(installation.number),
+                "zone": str(service.attributes.attributes[0].value),
+            },
+            "query": "query Sentinel($numinst: String!, $zone: String!) {\n  xSAllConfort(numinst: $numinst, zone: $zone) {\n    zone\n    alias\n    zonePrevious\n    aliasPrevious\n    zoneNext\n    aliasNext\n    moreDdis\n    status {\n      airQuality\n      airQualityMsg\n      humidity\n      temperature\n    }\n    forecast {\n      city\n      currentTemp\n      currentHum\n      description\n      forecastImg\n      day1 {\n        forecastImg\n        maxTemp\n        minTemp\n        value\n      }\n      day2 {\n        forecastImg\n        maxTemp\n        minTemp\n        value\n      }\n      day3 {\n        forecastImg\n        maxTemp\n        minTemp\n        value\n      }\n      day4 {\n        forecastImg\n        maxTemp\n        minTemp\n        value\n      }\n      day5 {\n        forecastImg\n        maxTemp\n        minTemp\n        value\n      }\n    }\n  }\n}\n",
+        }
+        response = self._execute_request(content)
+        result_json = json.loads(response.text)
+        if "errors" in result_json:
+            error_message = result_json["errors"][0]["message"]
+            return error_message
+        else:
+            raw_data = result_json["data"]["xSAllConfort"][0]["status"]
+            return Sentinel(
+                result_json["data"]["xSAllConfort"][0]["alias"],
+                raw_data["airQualityMsg"],
+                int(raw_data["humidity"]),
+                int(raw_data["temperature"]),
+            )
 
     def check_general_status(self, installation: Installation) -> SStatus:
         """Check current status of the alarm."""
@@ -211,11 +280,11 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
-            raw_data = result_json["data"]["xSStatus"]["services"]
+            raw_data = result_json["data"]["xSStatus"]
             return SStatus(raw_data["status"], raw_data["timestampUpdate"])
 
     def check_alarm_status(
@@ -235,7 +304,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
@@ -265,7 +334,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
@@ -297,7 +366,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
@@ -329,7 +398,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:
@@ -361,7 +430,7 @@ class ApiManager:
         }
         response = self._execute_request(content)
         result_json = json.loads(response.text)
-        if hasattr(result_json, "errors"):
+        if "errors" in result_json:
             error_message = result_json["errors"][0]["message"]
             return error_message
         else:

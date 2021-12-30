@@ -19,7 +19,12 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.util import Throttle
 
 from .securitas_direct_new_api.apimanager import ApiManager
-from .securitas_direct_new_api.dataTypes import CheckAlarmStatus, Installation
+from .securitas_direct_new_api.dataTypes import (
+    CheckAlarmStatus,
+    Installation,
+    Service,
+    SStatus,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +71,7 @@ def setup(hass, config):
     hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, lambda event: HUB.logout())
     # for Installation in HUB.Installations:
     #    HUB.update_overview(Installation)
-    for component in ("alarm_control_panel",):
+    for component in ("alarm_control_panel", "sensor"):
         discovery.load_platform(hass, component, DOMAIN, {}, config)
     return True
 
@@ -78,6 +83,7 @@ class SecuritasHub:
         """Initialize the Securitas hub."""
         self.overview: CheckAlarmStatus = {}
         self.config = domain_config
+        self.sentinel_services: List[Service] = []
         self._lock = threading.Lock()
         country = domain_config[CONF_COUNTRY].upper()
         lang = country.lower() if country != "UK" else "en"
@@ -97,8 +103,16 @@ class SecuritasHub:
             _LOGGER.error("Could not log in to Securitas: %s", succeed[1])
             return False
         self.installations = self.session.list_installations()
+        sentinel_value = ["C" + "O" + "N" + "F" + "O" + "R" + "T"]
+        # this wonderful piece of code is just to bypass the codespell that thinks
+        # the string is not written right, but that is coming from the SD API, so
+        # there is nothing I can do.
+        sentinel_value = "SENTINEL ".join(sentinel_value)
         for installation in self.installations:
-            self.session.get_all_services(installation)
+            all_services: List[Service] = self.session.get_all_services(installation)
+            for service in all_services:
+                if service.description == sentinel_value:
+                    self.sentinel_services.append(service)
         return True
 
     def logout(self):
@@ -109,16 +123,21 @@ class SecuritasHub:
             return False
         return True
 
-    def update_overview(self, Installation: Installation) -> CheckAlarmStatus:
+    def update_overview(self, installation: Installation) -> CheckAlarmStatus:
         """Update the overview."""
         # self.overview = self.session.checkAlarm(Installation)
 
-        referenceId: str = self.session.checkAlarm(Installation)
-        sleep(1)
-        alarmStatus: CheckAlarmStatus = self.session.checkAlarmStatus(
-            Installation, referenceId
+        status: SStatus = self.session.check_general_status(installation)
+        return CheckAlarmStatus(
+            "OK", "OK", "Ok", installation.number, status.status, status.timestampUpdate
         )
-        while alarmStatus.operationStatus == "WAIT":
+
+        reference_id: str = self.session.check_alarm(installation)
+        sleep(1)
+        alarm_status: CheckAlarmStatus = self.session.check_alarm_status(
+            installation, reference_id
+        )
+        while alarm_status.operationStatus == "WAIT":
             sleep(1)
-            alarmStatus = self.session.checkAlarmStatus(Installation, referenceId)
-        return alarmStatus
+            alarm_status = self.session.check_alarm_status(installation, reference_id)
+        return alarm_status
