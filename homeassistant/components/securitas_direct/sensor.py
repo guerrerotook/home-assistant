@@ -10,7 +10,7 @@ from homeassistant.const import PERCENTAGE, TEMP_CELSIUS
 
 from . import CONF_ALARM, HUB as hub
 
-SCAN_INTERVAL = timedelta(seconds=1200)
+SCAN_INTERVAL = timedelta(minutes=30)
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
