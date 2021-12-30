@@ -51,7 +51,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the Securitas platform."""
     alarms = []
     if int(hub.config.get(CONF_ALARM, 1)):
-        for item in hub.Installations:
+        for item in hub.installations:
             current_state: CheckAlarmStatus = hub.update_overview(
                 item, no_throttle=True
             )
@@ -198,7 +198,8 @@ class SecuritasAlarm(alarm.AlarmControlPanelEntity):
         """Update alarm status, from last alarm setting register or EST."""
         if status is not None:
             self._message = status.message
-            self._time = datetime.datetime.fromisoformat(status.protomResponseData)
+            # self._time = datetime.datetime.fromisoformat(status.protomResponseData)
+
             if status.protomResponse == "D":
                 # disarmed
                 self._state = STATE_ALARM_DISARMED

@@ -120,3 +120,14 @@ class Service:
     attributes: Attributes
     listdiy: List[Any]
     listprompt: List[Any]
+    installation: Installation
+
+
+@dataclass
+class Sentinel:
+    """Sentinel status."""
+
+    alias: str
+    air_quality: str
+    humidity: int
+    temperature: int
