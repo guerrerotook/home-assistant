@@ -10,6 +10,7 @@ from requests.models import Response
 from urllib3 import Retry
 
 from .dataTypes import (
+    AirQuality,
     ArmStatus,
     ArmType,
     Attribute,
@@ -269,6 +270,30 @@ class ApiManager:
                 raw_data["airQualityMsg"],
                 int(raw_data["humidity"]),
                 int(raw_data["temperature"]),
+            )
+
+    def get_air_quality_data(
+        self, installation: Installation, service: Service
+    ) -> AirQuality:
+        """Get sentinel status."""
+        content = {
+            "operationName": "AirQualityGraph",
+            "variables": {
+                "numinst": str(installation.number),
+                "zone": str(service.attributes.attributes[0].value),
+            },
+            "query": "query AirQualityGraph($numinst: String!, $zone: String!) {\n  xSAirQ(numinst: $numinst, zone: $zone) {\n    res\n    msg\n    graphData {\n      status {\n        avg6h\n        avg6hMsg\n        avg24h\n        avg24hMsg\n        avg7d\n        avg7dMsg\n        avg4w\n        avg4wMsg\n        current\n        currentMsg\n      }\n      daysTotal\n      days {\n        id\n        value\n      }\n      hoursTotal\n      hours {\n        id\n        value\n      }\n      weeksTotal\n      weeks {\n        id\n        value\n      }\n    }\n  }\n}\n",
+        }
+        response = self._execute_request(content)
+        result_json = json.loads(response.text)
+        if "errors" in result_json:
+            error_message = result_json["errors"][0]["message"]
+            return error_message
+        else:
+            raw_data = result_json["data"]["xSAirQ"]["graphData"]["status"]
+            return AirQuality(
+                int(raw_data["current"]),
+                raw_data["currentMsg"],
             )
 
     def check_general_status(self, installation: Installation) -> SStatus:
