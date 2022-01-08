@@ -1,15 +1,11 @@
 """Securitas direct sentinel sensor."""
 from datetime import timedelta
 
-from homeassistant.components.securitas_direct.securitas_direct_new_api.dataTypes import (
-    AirQuality,
-    Sentinel,
-    Service,
-)
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import PERCENTAGE, TEMP_CELSIUS
 
 from . import CONF_ALARM, HUB as hub
+from .securitas_direct_new_api.dataTypes import AirQuality, Sentinel, Service
 
 SCAN_INTERVAL = timedelta(minutes=30)
 
