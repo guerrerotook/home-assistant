@@ -1,0 +1,3 @@
+[submodule "homeassistant/components/securitas_direct_git"]
+	path = homeassistant/components/securitas_direct_git
+	url = https://github.com/guerrerotook/securitas-direct-new-api.git
