@@ -311,7 +311,7 @@ ambiclimate==0.2.1
 amcrest==1.9.3
 
 # homeassistant.components.androidtv
-androidtv[async]==0.0.61
+androidtv[async]==0.0.62
 
 # homeassistant.components.anel_pwrctrl
 anel_pwrctrl-homeassistant==0.0.1.dev2
@@ -842,7 +842,7 @@ hole==0.7.0
 holidays==0.12
 
 # homeassistant.components.frontend
-home-assistant-frontend==20220201.0
+home-assistant-frontend==20220202.0
 
 # homeassistant.components.zwave
 homeassistant-pyozw==0.1.10
@@ -2423,7 +2423,7 @@ vallox-websocket-api==2.9.0
 vehicle==0.3.1
 
 # homeassistant.components.velbus
-velbus-aio==2021.11.7
+velbus-aio==2022.2.1
 
 # homeassistant.components.venstar
 venstarcolortouch==0.15
