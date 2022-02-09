@@ -67,6 +67,8 @@ CONF_MIN_MIREDS = "min_mireds"
 CONF_RED_TEMPLATE = "red_template"
 CONF_WHITE_VALUE_TEMPLATE = "white_value_template"
 
+PAYLOAD_NONE = "None"
+
 PLATFORM_SCHEMA_TEMPLATE = (
     mqtt.MQTT_RW_PLATFORM_SCHEMA.extend(
         {
@@ -109,7 +111,7 @@ class MqttLightTemplate(MqttEntity, LightEntity, RestoreEntity):
 
     def __init__(self, hass, config, config_entry, discovery_data):
         """Initialize a MQTT Template light."""
-        self._state = False
+        self._state = None
 
         self._topics = None
         self._templates = None
@@ -173,6 +175,8 @@ class MqttLightTemplate(MqttEntity, LightEntity, RestoreEntity):
                 self._state = True
             elif state == STATE_OFF:
                 self._state = False
+            elif state == PAYLOAD_NONE:
+                self._state = None
             else:
                 _LOGGER.warning("Invalid state value received")
 
@@ -388,8 +392,7 @@ class MqttLightTemplate(MqttEntity, LightEntity, RestoreEntity):
         if ATTR_TRANSITION in kwargs:
             values["transition"] = kwargs[ATTR_TRANSITION]
 
-        await mqtt.async_publish(
-            self.hass,
+        await self.async_publish(
             self._topics[CONF_COMMAND_TOPIC],
             self._templates[CONF_COMMAND_ON_TEMPLATE].async_render(
                 parse_result=False, **values
@@ -414,8 +417,7 @@ class MqttLightTemplate(MqttEntity, LightEntity, RestoreEntity):
         if ATTR_TRANSITION in kwargs:
             values["transition"] = kwargs[ATTR_TRANSITION]
 
-        await mqtt.async_publish(
-            self.hass,
+        await self.async_publish(
             self._topics[CONF_COMMAND_TOPIC],
             self._templates[CONF_COMMAND_OFF_TEMPLATE].async_render(
                 parse_result=False, **values
