@@ -2,6 +2,7 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 from uuid import UUID
@@ -469,10 +470,19 @@ async def test_discover_dynamic_group(
         hass
     )
 
+    tasks = []
+    real_create_task = asyncio.create_task
+
+    def create_task(*args, **kwargs):
+        tasks.append(real_create_task(*args, **kwargs))
+
     # Discover cast service
     with patch(
         "homeassistant.components.cast.discovery.ChromeCastZeroconf.get_zeroconf",
         return_value=zconf_1,
+    ), patch(
+        "homeassistant.components.cast.media_player.asyncio.create_task",
+        wraps=create_task,
     ):
         discover_cast(
             pychromecast.discovery.ServiceInfo(
@@ -482,6 +492,10 @@ async def test_discover_dynamic_group(
         )
         await hass.async_block_till_done()
         await hass.async_block_till_done()  # having tasks that add jobs
+
+    assert len(tasks) == 1
+    await asyncio.gather(*tasks)
+    tasks.clear()
     get_chromecast_mock.assert_called()
     get_chromecast_mock.reset_mock()
     assert add_dev1.call_count == 0
@@ -491,6 +505,9 @@ async def test_discover_dynamic_group(
     with patch(
         "homeassistant.components.cast.discovery.ChromeCastZeroconf.get_zeroconf",
         return_value=zconf_2,
+    ), patch(
+        "homeassistant.components.cast.media_player.asyncio.create_task",
+        wraps=create_task,
     ):
         discover_cast(
             pychromecast.discovery.ServiceInfo(
@@ -500,6 +517,10 @@ async def test_discover_dynamic_group(
         )
         await hass.async_block_till_done()
         await hass.async_block_till_done()  # having tasks that add jobs
+
+    assert len(tasks) == 1
+    await asyncio.gather(*tasks)
+    tasks.clear()
     get_chromecast_mock.assert_called()
     get_chromecast_mock.reset_mock()
     assert add_dev1.call_count == 0
@@ -509,6 +530,9 @@ async def test_discover_dynamic_group(
     with patch(
         "homeassistant.components.cast.discovery.ChromeCastZeroconf.get_zeroconf",
         return_value=zconf_1,
+    ), patch(
+        "homeassistant.components.cast.media_player.asyncio.create_task",
+        wraps=create_task,
     ):
         discover_cast(
             pychromecast.discovery.ServiceInfo(
@@ -518,6 +542,8 @@ async def test_discover_dynamic_group(
         )
         await hass.async_block_till_done()
         await hass.async_block_till_done()  # having tasks that add jobs
+
+    assert len(tasks) == 0
     get_chromecast_mock.assert_not_called()
     assert add_dev1.call_count == 0
     assert reg.async_get_entity_id("media_player", "cast", cast_1.uuid) is None
@@ -606,7 +632,7 @@ async def test_entity_availability(hass: HomeAssistant):
     assert state.state == "unavailable"
 
 
-@pytest.mark.parametrize("port,entry_type", ((8009, None),))
+@pytest.mark.parametrize("port,entry_type", ((8009, None), (12345, None)))
 async def test_device_registry(hass: HomeAssistant, port, entry_type):
     """Test device registry integration."""
     entity_id = "media_player.speaker"
@@ -830,7 +856,6 @@ async def test_entity_browse_media(hass: HomeAssistant, hass_ws_client):
         "media_content_id": "media-source://media_source/local/Epic Sax Guy 10 Hours.mp4",
         "can_play": True,
         "can_expand": False,
-        "children_media_class": None,
         "thumbnail": None,
     }
     assert expected_child_1 in response["result"]["children"]
@@ -842,7 +867,6 @@ async def test_entity_browse_media(hass: HomeAssistant, hass_ws_client):
         "media_content_id": "media-source://media_source/local/test.mp3",
         "can_play": True,
         "can_expand": False,
-        "children_media_class": None,
         "thumbnail": None,
     }
     assert expected_child_2 in response["result"]["children"]
@@ -886,7 +910,6 @@ async def test_entity_browse_media_audio_only(
         "media_content_id": "media-source://media_source/local/Epic Sax Guy 10 Hours.mp4",
         "can_play": True,
         "can_expand": False,
-        "children_media_class": None,
         "thumbnail": None,
     }
     assert expected_child_1 not in response["result"]["children"]
@@ -898,7 +921,6 @@ async def test_entity_browse_media_audio_only(
         "media_content_id": "media-source://media_source/local/test.mp3",
         "can_play": True,
         "can_expand": False,
-        "children_media_class": None,
         "thumbnail": None,
     }
     assert expected_child_2 in response["result"]["children"]
@@ -1835,7 +1857,6 @@ async def test_cast_platform_browse_media(hass: HomeAssistant, hass_ws_client):
         "media_content_id": "",
         "can_play": False,
         "can_expand": True,
-        "children_media_class": None,
         "thumbnail": "https://brands.home-assistant.io/_/spotify/logo.png",
     }
     assert expected_child in response["result"]["children"]
@@ -1862,6 +1883,7 @@ async def test_cast_platform_browse_media(hass: HomeAssistant, hass_ws_client):
         "children_media_class": None,
         "thumbnail": None,
         "children": [],
+        "not_shown": 0,
     }
     assert response["result"] == expected_response
 
