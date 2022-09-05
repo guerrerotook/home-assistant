@@ -94,6 +94,7 @@ async def test_user_has_confirmation(hass, discovery_flow_conf):
 @pytest.mark.parametrize(
     "source",
     [
+        config_entries.SOURCE_BLUETOOTH,
         config_entries.SOURCE_DISCOVERY,
         config_entries.SOURCE_MQTT,
         config_entries.SOURCE_SSDP,
@@ -117,6 +118,7 @@ async def test_discovery_single_instance(hass, discovery_flow_conf, source):
 @pytest.mark.parametrize(
     "source",
     [
+        config_entries.SOURCE_BLUETOOTH,
         config_entries.SOURCE_DISCOVERY,
         config_entries.SOURCE_MQTT,
         config_entries.SOURCE_SSDP,
@@ -142,6 +144,7 @@ async def test_discovery_confirmation(hass, discovery_flow_conf, source):
 @pytest.mark.parametrize(
     "source",
     [
+        config_entries.SOURCE_BLUETOOTH,
         config_entries.SOURCE_DISCOVERY,
         config_entries.SOURCE_MQTT,
         config_entries.SOURCE_SSDP,
@@ -415,14 +418,3 @@ async def test_webhook_create_cloudhook_aborts_not_connected(hass, webhook_flow_
 
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "cloud_not_connected"
-
-
-async def test_warning_deprecated_connection_class(hass, caplog):
-    """Test that we log a warning when the connection_class is used."""
-    discovery_function = Mock()
-    with patch.dict(config_entries.HANDLERS):
-        config_entry_flow.register_discovery_flow(
-            "test", "Test", discovery_function, connection_class="local_polling"
-        )
-
-    assert "integration is setting a connection_class" in caplog.text
