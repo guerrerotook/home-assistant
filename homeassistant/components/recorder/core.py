@@ -13,6 +13,7 @@ import threading
 import time
 from typing import Any, TypeVar, cast
 
+import async_timeout
 from awesomeversion import AwesomeVersion
 from lru import LRU  # pylint: disable=no-name-in-module
 from sqlalchemy import create_engine, event as sqlalchemy_event, exc, func, select
@@ -71,6 +72,7 @@ from .queries import find_shared_attributes_id, find_shared_data_id
 from .run_history import RunHistory
 from .tasks import (
     AdjustStatisticsTask,
+    ChangeStatisticsUnitTask,
     ClearStatisticsTask,
     CommitTask,
     DatabaseLockTask,
@@ -479,10 +481,18 @@ class Recorder(threading.Thread):
 
     @callback
     def async_adjust_statistics(
-        self, statistic_id: str, start_time: datetime, sum_adjustment: float
+        self,
+        statistic_id: str,
+        start_time: datetime,
+        sum_adjustment: float,
+        adjustment_unit: str,
     ) -> None:
         """Adjust statistics."""
-        self.queue_task(AdjustStatisticsTask(statistic_id, start_time, sum_adjustment))
+        self.queue_task(
+            AdjustStatisticsTask(
+                statistic_id, start_time, sum_adjustment, adjustment_unit
+            )
+        )
 
     @callback
     def async_clear_statistics(self, statistic_ids: list[str]) -> None:
@@ -501,6 +511,21 @@ class Recorder(threading.Thread):
         self.queue_task(
             UpdateStatisticsMetadataTask(
                 statistic_id, new_statistic_id, new_unit_of_measurement
+            )
+        )
+
+    @callback
+    def async_change_statistics_unit(
+        self,
+        statistic_id: str,
+        *,
+        new_unit_of_measurement: str,
+        old_unit_of_measurement: str,
+    ) -> None:
+        """Change statistics unit for a statistic_id."""
+        self.queue_task(
+            ChangeStatisticsUnitTask(
+                statistic_id, new_unit_of_measurement, old_unit_of_measurement
             )
         )
 
@@ -1030,7 +1055,8 @@ class Recorder(threading.Thread):
         task = DatabaseLockTask(database_locked, threading.Event(), False)
         self.queue_task(task)
         try:
-            await asyncio.wait_for(database_locked.wait(), timeout=DB_LOCK_TIMEOUT)
+            async with async_timeout.timeout(DB_LOCK_TIMEOUT):
+                await database_locked.wait()
         except asyncio.TimeoutError as err:
             task.database_unlock.set()
             raise TimeoutError(
@@ -1096,7 +1122,9 @@ class Recorder(threading.Thread):
             # it tried to import it below.
             with contextlib.suppress(ImportError):
                 kwargs["connect_args"] = {"conv": build_mysqldb_conv()}
-        else:
+
+        # Disable extended logging for non SQLite databases
+        if not self.db_url.startswith(SQLITE_URL_PREFIX):
             kwargs["echo"] = False
 
         if self._using_file_sqlite:
