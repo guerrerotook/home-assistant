@@ -23,7 +23,12 @@ from homeassistant.components.recorder.models import (
     StatisticMetaData,
     StatisticResult,
 )
-from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, REVOLUTIONS_PER_MINUTE
+from homeassistant.const import (
+    ATTR_UNIT_OF_MEASUREMENT,
+    REVOLUTIONS_PER_MINUTE,
+    VOLUME_CUBIC_FEET,
+    VOLUME_CUBIC_METERS,
+)
 from homeassistant.core import HomeAssistant, State, split_entity_id
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import entity_sources
@@ -49,6 +54,8 @@ DEFAULT_STATISTICS = {
 
 EQUIVALENT_UNITS = {
     "RPM": REVOLUTIONS_PER_MINUTE,
+    "ft3": VOLUME_CUBIC_FEET,
+    "m3": VOLUME_CUBIC_METERS,
 }
 
 # Keep track of entities for which a warning about decreasing value has been logged
@@ -380,7 +387,7 @@ def _compile_statistics(  # noqa: C901
     sensor_states = _get_sensor_states(hass)
     wanted_statistics = _wanted_statistics(sensor_states)
     old_metadatas = statistics.get_metadata_with_session(
-        hass, session, statistic_ids=[i.entity_id for i in sensor_states]
+        session, statistic_ids=[i.entity_id for i in sensor_states]
     )
 
     # Get history between start and end
@@ -664,7 +671,7 @@ def validate_statistics(
             metadata_unit = metadata[1]["unit_of_measurement"]
             converter = statistics.STATISTIC_UNIT_TO_UNIT_CONVERTER.get(metadata_unit)
             if not converter:
-                if state_unit != metadata_unit:
+                if not _equivalent_units({state_unit, metadata_unit}):
                     # The unit has changed, and it's not possible to convert
                     validation_result[entity_id].append(
                         statistics.ValidationIssue(
