@@ -120,9 +120,20 @@
     },
     "airvisual": {
       "name": "AirVisual",
-      "integration_type": "device",
-      "config_flow": true,
-      "iot_class": "cloud_polling"
+      "integrations": {
+        "airvisual": {
+          "integration_type": "service",
+          "config_flow": true,
+          "iot_class": "cloud_polling",
+          "name": "AirVisual Cloud"
+        },
+        "airvisual_pro": {
+          "integration_type": "device",
+          "config_flow": true,
+          "iot_class": "local_polling",
+          "name": "AirVisual Pro"
+        }
+      }
     },
     "airzone": {
       "name": "Airzone",
@@ -143,7 +154,6 @@
       "iot_class": "local_push"
     },
     "alert": {
-      "name": "Alert",
       "integration_type": "hub",
       "config_flow": false,
       "iot_class": "local_push"
@@ -232,7 +242,7 @@
     },
     "androidtv": {
       "name": "Android TV",
-      "integration_type": "hub",
+      "integration_type": "device",
       "config_flow": true,
       "iot_class": "local_polling"
     },
@@ -992,12 +1002,6 @@
           "name": "Denon HEOS"
         }
       }
-    },
-    "deutsche_bahn": {
-      "name": "Deutsche Bahn",
-      "integration_type": "hub",
-      "config_flow": false,
-      "iot_class": "cloud_polling"
     },
     "device_sun_light_trigger": {
       "name": "Presence-based Lights",
@@ -1957,6 +1961,12 @@
           "iot_class": "cloud_push",
           "name": "Google Assistant"
         },
+        "google_assistant_sdk": {
+          "integration_type": "service",
+          "config_flow": true,
+          "iot_class": "cloud_polling",
+          "name": "Google Assistant SDK"
+        },
         "google_cloud": {
           "integration_type": "hub",
           "config_flow": false,
@@ -2021,12 +2031,6 @@
           "config_flow": true,
           "iot_class": "local_polling",
           "name": "Google Cast"
-        },
-        "hangouts": {
-          "integration_type": "hub",
-          "config_flow": true,
-          "iot_class": "cloud_push",
-          "name": "Google Chat"
         },
         "dialogflow": {
           "integration_type": "hub",
@@ -2884,6 +2888,12 @@
       "config_flow": false,
       "iot_class": "cloud_push"
     },
+    "local_calendar": {
+      "name": "Local Calendar",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "local_polling"
+    },
     "local_file": {
       "name": "Local File",
       "integration_type": "hub",
@@ -3045,6 +3055,12 @@
       "integration_type": "hub",
       "config_flow": false,
       "iot_class": "cloud_push"
+    },
+    "matter": {
+      "name": "Matter (BETA)",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "local_push"
     },
     "mazda": {
       "name": "Mazda Connected Services",
@@ -3657,7 +3673,7 @@
     },
     "nut": {
       "name": "Network UPS Tools (NUT)",
-      "integration_type": "hub",
+      "integration_type": "device",
       "config_flow": true,
       "iot_class": "local_polling"
     },
@@ -4158,6 +4174,12 @@
       "integration_type": "hub",
       "config_flow": true,
       "iot_class": "local_polling"
+    },
+    "purpleair": {
+      "name": "PurpleAir",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "cloud_polling"
     },
     "push": {
       "name": "Push",
@@ -6156,16 +6178,21 @@
       }
     },
     "yamaha": {
-      "name": "Yamaha Network Receivers",
-      "integration_type": "hub",
-      "config_flow": false,
-      "iot_class": "local_polling"
-    },
-    "yamaha_musiccast": {
-      "name": "MusicCast",
-      "integration_type": "hub",
-      "config_flow": true,
-      "iot_class": "local_push"
+      "name": "Yamaha",
+      "integrations": {
+        "yamaha": {
+          "integration_type": "hub",
+          "config_flow": false,
+          "iot_class": "local_polling",
+          "name": "Yamaha Network Receivers"
+        },
+        "yamaha_musiccast": {
+          "integration_type": "hub",
+          "config_flow": true,
+          "iot_class": "local_push",
+          "name": "MusicCast"
+        }
+      }
     },
     "yandex": {
       "name": "Yandex",
@@ -6380,6 +6407,7 @@
     }
   },
   "translated_name": [
+    "alert",
     "aurora",
     "cert_expiry",
     "cpuspeed",

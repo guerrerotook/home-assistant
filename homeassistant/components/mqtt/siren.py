@@ -97,7 +97,7 @@ PLATFORM_SCHEMA_MODERN = MQTT_RW_SCHEMA.extend(
     },
 ).extend(MQTT_ENTITY_COMMON_SCHEMA.schema)
 
-# Configuring MQTT Sirens under the siren platform key is deprecated in HA Core 2022.6
+# Configuring MQTT Sirens under the siren platform key was deprecated in HA Core 2022.6
 # Setup for the legacy YAML format was removed in HA Core 2022.12
 PLATFORM_SCHEMA = vol.All(
     warn_for_legacy_schema(siren.DOMAIN),
@@ -180,10 +180,10 @@ class MqttSiren(MqttEntity, SirenEntity):
     def _setup_from_config(self, config: ConfigType) -> None:
         """(Re)Setup the entity."""
 
-        state_on = config.get(CONF_STATE_ON)
+        state_on: str | None = config.get(CONF_STATE_ON)
         self._state_on = state_on if state_on else config[CONF_PAYLOAD_ON]
 
-        state_off = config.get(CONF_STATE_OFF)
+        state_off: str | None = config.get(CONF_STATE_OFF)
         self._state_off = state_off if state_off else config[CONF_PAYLOAD_OFF]
 
         self._attr_extra_state_attributes = {}
@@ -249,13 +249,19 @@ class MqttSiren(MqttEntity, SirenEntity):
                 try:
                     json_payload = json_loads(payload)
                     _LOGGER.debug(
-                        "JSON payload detected after processing payload '%s' on topic %s",
+                        (
+                            "JSON payload detected after processing payload '%s' on"
+                            " topic %s"
+                        ),
                         json_payload,
                         msg.topic,
                     )
                 except JSON_DECODE_EXCEPTIONS:
                     _LOGGER.warning(
-                        "No valid (JSON) payload detected after processing payload '%s' on topic %s",
+                        (
+                            "No valid (JSON) payload detected after processing payload"
+                            " '%s' on topic %s"
+                        ),
                         json_payload,
                         msg.topic,
                     )
