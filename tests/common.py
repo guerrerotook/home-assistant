@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from aiohttp.test_utils import unused_port as get_test_instance_port  # noqa: F401
 import voluptuous as vol
 
-from homeassistant import auth, config_entries, core as ha, loader
+from homeassistant import auth, bootstrap, config_entries, core as ha, loader
 from homeassistant.auth import (
     auth_store,
     models as auth_models,
@@ -160,7 +160,7 @@ def get_test_home_assistant():
 
 
 # pylint: disable=protected-access
-async def async_test_home_assistant(loop, load_registries=True):
+async def async_test_home_assistant(event_loop, load_registries=True):
     """Return a Home Assistant object pointing at test config dir."""
     hass = ha.HomeAssistant()
     store = auth_store.AuthStore(hass)
@@ -289,6 +289,7 @@ async def async_test_home_assistant(loop, load_registries=True):
     hass.config.units = METRIC_SYSTEM
     hass.config.media_dirs = {"local": get_test_config_dir("media")}
     hass.config.skip_pip = True
+    hass.config.skip_pip_packages = []
 
     hass.config_entries = config_entries.ConfigEntries(
         hass,
@@ -306,6 +307,7 @@ async def async_test_home_assistant(loop, load_registries=True):
             issue_registry.async_load(hass),
         )
         await hass.async_block_till_done()
+        hass.data[bootstrap.DATA_REGISTRIES_LOADED] = None
 
     hass.state = ha.CoreState.running
 
@@ -1112,6 +1114,11 @@ class MockEntity(entity.Entity):
         return self._handle("supported_features")
 
     @property
+    def translation_key(self):
+        """Return the translation key."""
+        return self._handle("translation_key")
+
+    @property
     def unique_id(self):
         """Return the unique ID of the entity."""
         return self._handle("unique_id")
@@ -1294,6 +1301,38 @@ def assert_lists_same(a, b):
         assert i in b
     for i in b:
         assert i in a
+
+
+_SENTINEL = object()
+
+
+class _HA_ANY:
+    """A helper object that compares equal to everything.
+
+    Based on unittest.mock.ANY, but modified to not show up in pytest's equality
+    assertion diffs.
+    """
+
+    _other = _SENTINEL
+
+    def __eq__(self, other):
+        """Test equal."""
+        self._other = other
+        return True
+
+    def __ne__(self, other):
+        """Test not equal."""
+        self._other = other
+        return False
+
+    def __repr__(self):
+        """Return repr() other to not show up in pytest quality diffs."""
+        if self._other is _SENTINEL:
+            return "<ANY>"
+        return repr(self._other)
+
+
+ANY = _HA_ANY()
 
 
 def raise_contains_mocks(val):
