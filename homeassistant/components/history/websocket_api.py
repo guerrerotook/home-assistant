@@ -27,12 +27,15 @@ from homeassistant.core import (
     State,
     callback,
     is_callback,
+    valid_entity_id,
 )
 from homeassistant.helpers.event import (
+    EventStateChangedData,
     async_track_point_in_utc_time,
     async_track_state_change_event,
 )
 from homeassistant.helpers.json import JSON_DUMP
+from homeassistant.helpers.typing import EventType
 import homeassistant.util.dt as dt_util
 
 from .const import EVENT_COALESCE_TIME, MAX_PENDING_HISTORY_STATES
@@ -41,7 +44,7 @@ from .helpers import entities_may_have_state_changes_after
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class HistoryLiveStream:
     """Track a history live stream."""
 
@@ -95,7 +98,7 @@ def _ws_get_significant_states(
         vol.Required("type"): "history/history_during_period",
         vol.Required("start_time"): str,
         vol.Optional("end_time"): str,
-        vol.Optional("entity_ids"): [str],
+        vol.Required("entity_ids"): [str],
         vol.Optional("include_start_time_state", default=True): bool,
         vol.Optional("significant_changes_only", default=True): bool,
         vol.Optional("minimal_response", default=False): bool,
@@ -129,7 +132,12 @@ async def ws_get_history_during_period(
         connection.send_result(msg["id"], {})
         return
 
-    entity_ids = msg.get("entity_ids")
+    entity_ids: list[str] = msg["entity_ids"]
+    for entity_id in entity_ids:
+        if not hass.states.get(entity_id) and not valid_entity_id(entity_id):
+            connection.send_error(msg["id"], "invalid_entity_ids", "Invalid entity_ids")
+            return
+
     include_start_time_state = msg["include_start_time_state"]
     no_attributes = msg["no_attributes"]
 
@@ -367,14 +375,12 @@ def _async_subscribe_events(
     assert is_callback(target), "target must be a callback"
 
     @callback
-    def _forward_state_events_filtered(event: Event) -> None:
+    def _forward_state_events_filtered(event: EventType[EventStateChangedData]) -> None:
         """Filter state events and forward them."""
-        if (new_state := event.data.get("new_state")) is None or (
-            old_state := event.data.get("old_state")
+        if (new_state := event.data["new_state"]) is None or (
+            old_state := event.data["old_state"]
         ) is None:
             return
-        assert isinstance(new_state, State)
-        assert isinstance(old_state, State)
         if (
             (significant_changes_only or minimal_response)
             and new_state.state == old_state.state
@@ -428,6 +434,11 @@ async def ws_stream(
             return
 
     entity_ids: list[str] = msg["entity_ids"]
+    for entity_id in entity_ids:
+        if not hass.states.get(entity_id) and not valid_entity_id(entity_id):
+            connection.send_error(msg["id"], "invalid_entity_ids", "Invalid entity_ids")
+            return
+
     include_start_time_state = msg["include_start_time_state"]
     significant_changes_only = msg["significant_changes_only"]
     no_attributes = msg["no_attributes"]
