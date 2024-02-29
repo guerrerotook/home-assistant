@@ -31,6 +31,7 @@ from homeassistant.helpers.entity_registry import EntityRegistry, async_get
 from homeassistant.setup import async_setup_component
 
 from . import (
+    get_entity_state,
     init_integration,
     mock_polling_rpc_update,
     mock_rest_update,
@@ -353,6 +354,32 @@ async def test_rpc_sensor(
     assert hass.states.get(entity_id).state == STATE_UNKNOWN
 
 
+async def test_rpc_rssi_sensor_removal(
+    hass: HomeAssistant,
+    mock_rpc_device: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+    entity_registry_enabled_by_default: None,
+) -> None:
+    """Test RPC RSSI sensor removal if no WiFi stations enabled."""
+    entity_id = f"{SENSOR_DOMAIN}.test_name_rssi"
+    entry = await init_integration(hass, 2)
+
+    # WiFi1 enabled, do not remove sensor
+    assert get_entity_state(hass, entity_id) == "-63"
+
+    # WiFi1 & WiFi2 disabled - remove sensor
+    monkeypatch.setitem(mock_rpc_device.config["wifi"]["sta"], "enable", False)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id) is None
+
+    # WiFi2 enabled, do not remove sensor
+    monkeypatch.setitem(mock_rpc_device.config["wifi"]["sta1"], "enable", True)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert get_entity_state(hass, entity_id) == "-63"
+
+
 async def test_rpc_illuminance_sensor(
     hass: HomeAssistant, mock_rpc_device: Mock, entity_registry: EntityRegistry
 ) -> None:
@@ -638,18 +665,62 @@ async def test_block_sleeping_update_entity_service(
     )
 
 
-async def test_rpc_analog_input_xpercent_sensor(
+async def test_rpc_analog_input_sensors(
     hass: HomeAssistant, mock_rpc_device: Mock, entity_registry: EntityRegistry
 ) -> None:
     """Test RPC analog input xpercent sensor."""
-    entity_id = f"{SENSOR_DOMAIN}.test_name_input_0_analog_value"
     await init_integration(hass, 2)
 
+    entity_id = f"{SENSOR_DOMAIN}.test_name_analog_input"
+    assert hass.states.get(entity_id).state == "89"
+
+    entry = entity_registry.async_get(entity_id)
+    assert entry
+    assert entry.unique_id == "123456789ABC-input:1-analoginput"
+
+    entity_id = f"{SENSOR_DOMAIN}.test_name_analog_value"
     assert hass.states.get(entity_id).state == "8.9"
 
     entry = entity_registry.async_get(entity_id)
     assert entry
-    assert entry.unique_id == "123456789ABC-input:0-analoginput_xpercent"
+    assert entry.unique_id == "123456789ABC-input:1-analoginput_xpercent"
+
+
+async def test_rpc_disabled_analog_input_sensors(
+    hass: HomeAssistant, mock_rpc_device: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test RPC disabled counter sensor."""
+    new_config = deepcopy(mock_rpc_device.config)
+    new_config["input:1"]["enable"] = False
+    monkeypatch.setattr(mock_rpc_device, "config", new_config)
+
+    await init_integration(hass, 2)
+
+    entity_id = f"{SENSOR_DOMAIN}.test_name_analog_input"
+    assert hass.states.get(entity_id) is None
+
+    entity_id = f"{SENSOR_DOMAIN}.test_name_analog_value"
+    assert hass.states.get(entity_id) is None
+
+
+async def test_rpc_disabled_xpercent(
+    hass: HomeAssistant, mock_rpc_device: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test RPC empty xpercent value."""
+    mutate_rpc_device_status(
+        monkeypatch,
+        mock_rpc_device,
+        "input:1",
+        "xpercent",
+        None,
+    )
+    await init_integration(hass, 2)
+
+    entity_id = f"{SENSOR_DOMAIN}.test_name_analog_input"
+    assert hass.states.get(entity_id).state == "89"
+
+    entity_id = f"{SENSOR_DOMAIN}.test_name_analog_value"
+    assert hass.states.get(entity_id) is None
 
 
 async def test_rpc_pulse_counter_sensors(
