@@ -1,17 +1,14 @@
 """Tests for the Heos Media Player platform."""
 
 import asyncio
+from typing import Any
 
 from pyheos import CommandFailedError, const
 from pyheos.error import HeosError
 import pytest
 
 from homeassistant.components.heos import media_player
-from homeassistant.components.heos.const import (
-    DATA_SOURCE_MANAGER,
-    DOMAIN,
-    SIGNAL_HEOS_UPDATED,
-)
+from homeassistant.components.heos.const import DOMAIN, SIGNAL_HEOS_UPDATED
 from homeassistant.components.media_player import (
     ATTR_GROUP_MEMBERS,
     ATTR_INPUT_SOURCE,
@@ -58,8 +55,12 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.setup import async_setup_component
 
+from tests.common import MockConfigEntry
 
-async def setup_platform(hass, config_entry, config):
+
+async def setup_platform(
+    hass: HomeAssistant, config_entry: MockConfigEntry, config: dict[str, Any]
+) -> None:
     """Set up the media player platform for testing."""
     config_entry.add_to_hass(hass)
     assert await async_setup_component(hass, DOMAIN, config)
@@ -101,7 +102,7 @@ async def test_state_attributes(
     assert ATTR_INPUT_SOURCE not in state.attributes
     assert (
         state.attributes[ATTR_INPUT_SOURCE_LIST]
-        == hass.data[DOMAIN][DATA_SOURCE_MANAGER].source_list
+        == config_entry.runtime_data.source_manager.source_list
     )
 
 
@@ -214,7 +215,7 @@ async def test_updates_from_sources_updated(
         const.SIGNAL_CONTROLLER_EVENT, const.EVENT_SOURCES_CHANGED, {}
     )
     await event.wait()
-    source_list = hass.data[DOMAIN][DATA_SOURCE_MANAGER].source_list
+    source_list = config_entry.runtime_data.source_manager.source_list
     assert len(source_list) == 2
     state = hass.states.get("media_player.test_player")
     assert state.attributes[ATTR_INPUT_SOURCE_LIST] == source_list
@@ -313,7 +314,7 @@ async def test_updates_from_user_changed(
         const.SIGNAL_CONTROLLER_EVENT, const.EVENT_USER_CHANGED, None
     )
     await event.wait()
-    source_list = hass.data[DOMAIN][DATA_SOURCE_MANAGER].source_list
+    source_list = config_entry.runtime_data.source_manager.source_list
     assert len(source_list) == 1
     state = hass.states.get("media_player.test_player")
     assert state.attributes[ATTR_INPUT_SOURCE_LIST] == source_list
@@ -688,7 +689,7 @@ async def test_unload_config_entry(
 ) -> None:
     """Test the player is set unavailable when the config entry is unloaded."""
     await setup_platform(hass, config_entry, config)
-    await config_entry.async_unload(hass)
+    await hass.config_entries.async_unload(config_entry.entry_id)
     assert hass.states.get("media_player.test_player").state == STATE_UNAVAILABLE
 
 

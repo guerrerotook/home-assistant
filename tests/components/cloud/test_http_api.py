@@ -14,12 +14,13 @@ from hass_nabucasa.voice import TTS_VOICES
 import pytest
 
 from homeassistant.components.alexa import errors as alexa_errors
+
+# pylint: disable-next=hass-component-root-import
 from homeassistant.components.alexa.entities import LightCapabilities
 from homeassistant.components.assist_pipeline.pipeline import STORAGE_KEY
 from homeassistant.components.cloud.const import DEFAULT_EXPOSED_DOMAINS, DOMAIN
 from homeassistant.components.google_assistant.helpers import GoogleEntity
 from homeassistant.components.homeassistant import exposed_entities
-from homeassistant.components.http.const import StrictConnectionMode
 from homeassistant.components.websocket_api import ERR_INVALID_FORMAT
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
@@ -783,7 +784,7 @@ async def test_websocket_status(
             "google_report_state": True,
             "remote_allow_remote_enable": True,
             "remote_enabled": False,
-            "strict_connection": "disabled",
+            "cloud_ice_servers_enabled": True,
             "tts_default_voice": ["en-US", "JennyNeural"],
         },
         "alexa_entities": {
@@ -903,7 +904,7 @@ async def test_websocket_update_preferences(
     assert cloud.client.prefs.alexa_enabled
     assert cloud.client.prefs.google_secure_devices_pin is None
     assert cloud.client.prefs.remote_allow_remote_enable is True
-    assert cloud.client.prefs.strict_connection is StrictConnectionMode.DISABLED
+    assert cloud.client.prefs.cloud_ice_servers_enabled is True
 
     client = await hass_ws_client(hass)
 
@@ -915,7 +916,7 @@ async def test_websocket_update_preferences(
             "google_secure_devices_pin": "1234",
             "tts_default_voice": ["en-GB", "RyanNeural"],
             "remote_allow_remote_enable": False,
-            "strict_connection": StrictConnectionMode.DROP_CONNECTION,
+            "cloud_ice_servers_enabled": False,
         }
     )
     response = await client.receive_json()
@@ -925,8 +926,8 @@ async def test_websocket_update_preferences(
     assert not cloud.client.prefs.alexa_enabled
     assert cloud.client.prefs.google_secure_devices_pin == "1234"
     assert cloud.client.prefs.remote_allow_remote_enable is False
+    assert cloud.client.prefs.cloud_ice_servers_enabled is False
     assert cloud.client.prefs.tts_default_voice == ("en-GB", "RyanNeural")
-    assert cloud.client.prefs.strict_connection is StrictConnectionMode.DROP_CONNECTION
 
 
 @pytest.mark.parametrize(

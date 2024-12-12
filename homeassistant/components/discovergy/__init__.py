@@ -16,7 +16,7 @@ from .coordinator import DiscovergyUpdateCoordinator
 
 PLATFORMS = [Platform.SENSOR]
 
-DiscovergyConfigEntry = ConfigEntry[list[DiscovergyUpdateCoordinator]]
+type DiscovergyConfigEntry = ConfigEntry[list[DiscovergyUpdateCoordinator]]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: DiscovergyConfigEntry) -> bool:
@@ -60,11 +60,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: DiscovergyConfigEntry) -
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: DiscovergyConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_reload_entry(hass: HomeAssistant, entry: DiscovergyConfigEntry) -> None:
     """Handle an options update."""
     await hass.config_entries.async_reload(entry.entry_id)
