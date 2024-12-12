@@ -6,11 +6,12 @@ from unittest.mock import AsyncMock, Mock
 
 from aiohttp import ClientResponse
 import pytest
-from pyunifiprotect.data import Camera, Event, EventType
-from pyunifiprotect.exceptions import ClientError
+from uiprotect.data import Camera, Event, EventType, ModelType
+from uiprotect.exceptions import ClientError
 
 from homeassistant.components.unifiprotect.views import (
     async_generate_event_video_url,
+    async_generate_proxy_event_video_url,
     async_generate_thumbnail_url,
 )
 from homeassistant.core import HomeAssistant
@@ -149,6 +150,25 @@ async def test_thumbnail_entry_id(
     ufp.api.get_event_thumbnail.assert_called_with("test_id", width=None, height=None)
 
 
+async def test_thumbnail_invalid_entry_entry_id(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+) -> None:
+    """Test invalid config entry ID in URL."""
+
+    ufp.api.get_event_thumbnail = AsyncMock(return_value=b"testtest")
+
+    await init_entry(hass, ufp, [camera])
+    url = async_generate_thumbnail_url("test_id", "invalid")
+
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+
+    assert response.status == 404
+
+
 async def test_video_bad_event(
     hass: HomeAssistant,
     ufp: MockUFPFixture,
@@ -160,6 +180,7 @@ async def test_video_bad_event(
     await init_entry(hass, ufp, [camera])
 
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id="test_id",
         start=fixed_now - timedelta(seconds=30),
@@ -186,6 +207,7 @@ async def test_video_bad_event_ongoing(
     await init_entry(hass, ufp, [camera])
 
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=fixed_now - timedelta(seconds=30),
@@ -213,6 +235,7 @@ async def test_video_bad_perms(
     await init_entry(hass, ufp, [camera])
 
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=fixed_now - timedelta(seconds=30),
@@ -241,6 +264,7 @@ async def test_video_bad_nvr_id(
     await init_entry(hass, ufp, [camera])
 
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=fixed_now - timedelta(seconds=30),
@@ -275,6 +299,7 @@ async def test_video_bad_camera_id(
     await init_entry(hass, ufp, [camera])
 
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=fixed_now - timedelta(seconds=30),
@@ -309,6 +334,7 @@ async def test_video_bad_camera_perms(
     await init_entry(hass, ufp, [camera])
 
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=fixed_now - timedelta(seconds=30),
@@ -349,6 +375,7 @@ async def test_video_bad_params(
 
     event_start = fixed_now - timedelta(seconds=30)
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=event_start,
@@ -386,6 +413,7 @@ async def test_video_bad_video(
 
     event_start = fixed_now - timedelta(seconds=30)
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=event_start,
@@ -428,6 +456,7 @@ async def test_video(
 
     event_start = fixed_now - timedelta(seconds=30)
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=event_start,
@@ -471,6 +500,7 @@ async def test_video_entity_id(
 
     event_start = fixed_now - timedelta(seconds=30)
     event = Event(
+        model=ModelType.EVENT,
         api=ufp.api,
         camera_id=camera.id,
         start=event_start,
@@ -484,6 +514,222 @@ async def test_video_entity_id(
 
     url = async_generate_event_video_url(event)
     url = url.replace(camera.id, "camera.test_camera_high_resolution_channel")
+
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+    assert await response.content.read() == b"testtest"
+
+    assert response.status == 200
+    ufp.api.request.assert_called_once()
+
+
+async def test_video_event_bad_nvr_id(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    camera: Camera,
+    ufp: MockUFPFixture,
+) -> None:
+    """Test video proxy URL with bad NVR id."""
+
+    ufp.api.request = AsyncMock()
+    await init_entry(hass, ufp, [camera])
+
+    url = async_generate_proxy_event_video_url("bad_id", "test_id")
+
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+
+    assert response.status == 404
+    ufp.api.request.assert_not_called()
+
+
+async def test_video_event_bad_event(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+) -> None:
+    """Test generating event with bad event ID."""
+
+    ufp.api.get_event = AsyncMock(side_effect=ClientError())
+
+    await init_entry(hass, ufp, [camera])
+    url = async_generate_proxy_event_video_url(ufp.api.bootstrap.nvr.id, "bad_event_id")
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+    assert response.status == 404
+    ufp.api.request.assert_not_called()
+
+
+async def test_video_event_bad_camera(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+) -> None:
+    """Test generating event with bad camera ID."""
+
+    ufp.api.get_event = AsyncMock(side_effect=ClientError())
+
+    await init_entry(hass, ufp, [camera])
+    url = async_generate_proxy_event_video_url(ufp.api.bootstrap.nvr.id, "bad_event_id")
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+    assert response.status == 404
+    ufp.api.request.assert_not_called()
+
+
+async def test_video_event_bad_camera_perms(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+    fixed_now: datetime,
+) -> None:
+    """Test video URL with bad camera perms."""
+
+    ufp.api.request = AsyncMock()
+    await init_entry(hass, ufp, [camera])
+
+    event_start = fixed_now - timedelta(seconds=30)
+    event = Event(
+        model=ModelType.EVENT,
+        api=ufp.api,
+        start=event_start,
+        end=fixed_now,
+        id="test_id",
+        type=EventType.MOTION,
+        score=100,
+        smart_detect_types=[],
+        smart_detect_event_ids=[],
+        camera_id="bad_id",
+        camera=camera,
+    )
+
+    ufp.api.get_event = AsyncMock(return_value=event)
+
+    url = async_generate_proxy_event_video_url(ufp.api.bootstrap.nvr.id, "test_id")
+
+    ufp.api.bootstrap.auth_user.all_permissions = []
+    ufp.api.bootstrap.auth_user._perm_cache = {}
+
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+
+    assert response.status == 404
+    ufp.api.request.assert_not_called()
+
+
+async def test_video_event_ongoing(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+    fixed_now: datetime,
+) -> None:
+    """Test video URL with ongoing event."""
+
+    ufp.api.request = AsyncMock()
+    await init_entry(hass, ufp, [camera])
+
+    event_start = fixed_now - timedelta(seconds=30)
+    event = Event(
+        model=ModelType.EVENT,
+        api=ufp.api,
+        start=event_start,
+        id="test_id",
+        type=EventType.MOTION,
+        score=100,
+        smart_detect_types=[],
+        smart_detect_event_ids=[],
+        camera_id=camera.id,
+        camera=camera,
+    )
+
+    ufp.api.get_event = AsyncMock(return_value=event)
+
+    url = async_generate_proxy_event_video_url(ufp.api.bootstrap.nvr.id, "test_id")
+
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+
+    assert response.status == 400
+    ufp.api.request.assert_not_called()
+
+
+async def test_event_video_no_data(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+    fixed_now: datetime,
+) -> None:
+    """Test invalid no event video returned."""
+
+    await init_entry(hass, ufp, [camera])
+    event_start = fixed_now - timedelta(seconds=30)
+    event = Event(
+        model=ModelType.EVENT,
+        api=ufp.api,
+        start=event_start,
+        end=fixed_now,
+        id="test_id",
+        type=EventType.MOTION,
+        score=100,
+        smart_detect_types=[],
+        smart_detect_event_ids=[],
+        camera_id=camera.id,
+        camera=camera,
+    )
+
+    ufp.api.request = AsyncMock(side_effect=ClientError)
+    ufp.api.get_event = AsyncMock(return_value=event)
+
+    url = async_generate_proxy_event_video_url(ufp.api.bootstrap.nvr.id, "test_id")
+
+    http_client = await hass_client()
+    response = cast(ClientResponse, await http_client.get(url))
+
+    assert response.status == 404
+
+
+async def test_event_video(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    ufp: MockUFPFixture,
+    camera: Camera,
+    fixed_now: datetime,
+) -> None:
+    """Test event video URL with no video."""
+
+    content = Mock()
+    content.__anext__ = AsyncMock(side_effect=[b"test", b"test", StopAsyncIteration()])
+    content.__aiter__ = Mock(return_value=content)
+
+    mock_response = Mock()
+    mock_response.content_length = 8
+    mock_response.content.iter_chunked = Mock(return_value=content)
+
+    ufp.api.request = AsyncMock(return_value=mock_response)
+    await init_entry(hass, ufp, [camera])
+    event_start = fixed_now - timedelta(seconds=30)
+    event = Event(
+        model=ModelType.EVENT,
+        api=ufp.api,
+        start=event_start,
+        end=fixed_now,
+        id="test_id",
+        type=EventType.MOTION,
+        score=100,
+        smart_detect_types=[],
+        smart_detect_event_ids=[],
+        camera_id=camera.id,
+        camera=camera,
+    )
+
+    ufp.api.get_event = AsyncMock(return_value=event)
+
+    url = async_generate_proxy_event_video_url(ufp.api.bootstrap.nvr.id, "test_id")
 
     http_client = await hass_client()
     response = cast(ClientResponse, await http_client.get(url))

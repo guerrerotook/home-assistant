@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import IntEnum
+from enum import StrEnum, auto
 import json
 from pathlib import Path
 import subprocess
@@ -20,7 +20,7 @@ from voluptuous.humanize import humanize_error
 from homeassistant.const import Platform
 from homeassistant.helpers import config_validation as cv
 
-from .model import Config, Integration
+from .model import Config, Integration, ScaledQualityScaleTiers
 
 DOCUMENTATION_URL_SCHEMA = "https"
 DOCUMENTATION_URL_HOST = "www.home-assistant.io"
@@ -28,16 +28,20 @@ DOCUMENTATION_URL_PATH_PREFIX = "/integrations/"
 DOCUMENTATION_URL_EXCEPTIONS = {"https://www.home-assistant.io/hassio"}
 
 
-class QualityScale(IntEnum):
+class NonScaledQualityScaleTiers(StrEnum):
     """Supported manifest quality scales."""
 
-    INTERNAL = -1
-    SILVER = 1
-    GOLD = 2
-    PLATINUM = 3
+    CUSTOM = auto()
+    NO_SCORE = auto()
+    INTERNAL = auto()
+    LEGACY = auto()
 
 
-SUPPORTED_QUALITY_SCALES = [enum.name.lower() for enum in QualityScale]
+SUPPORTED_QUALITY_SCALES = [
+    value.name.lower()
+    for enum in [ScaledQualityScaleTiers, NonScaledQualityScaleTiers]
+    for value in enum
+]
 SUPPORTED_IOT_CLASSES = [
     "assumed_state",
     "calculated",
@@ -88,12 +92,10 @@ NO_IOT_CLASS = [
     "logbook",
     "logger",
     "lovelace",
-    "map",
     "media_source",
     "my",
     "onboarding",
     "panel_custom",
-    "panel_iframe",
     "plant",
     "profiler",
     "proxy",
@@ -257,7 +259,6 @@ INTEGRATION_MANIFEST_SCHEMA = vol.Schema(
             )
         ],
         vol.Required("documentation"): vol.All(vol.Url(), documentation_url),
-        vol.Optional("issue_tracker"): vol.Url(),
         vol.Optional("quality_scale"): vol.In(SUPPORTED_QUALITY_SCALES),
         vol.Optional("requirements"): [str],
         vol.Optional("dependencies"): [str],
@@ -293,6 +294,7 @@ def manifest_schema(value: dict[str, Any]) -> vol.Schema:
 CUSTOM_INTEGRATION_MANIFEST_SCHEMA = INTEGRATION_MANIFEST_SCHEMA.extend(
     {
         vol.Optional("version"): vol.All(str, verify_version),
+        vol.Optional("issue_tracker"): vol.Url(),
         vol.Optional("import_executor"): bool,
     }
 )
@@ -350,13 +352,15 @@ def validate_manifest(integration: Integration, core_components_dir: Path) -> No
 
     if (
         (quality_scale := integration.manifest.get("quality_scale"))
-        and QualityScale[quality_scale.upper()] > QualityScale.SILVER
-        and not integration.manifest.get("codeowners")
+        and quality_scale.upper() in ScaledQualityScaleTiers
+        and ScaledQualityScaleTiers[quality_scale.upper()]
+        >= ScaledQualityScaleTiers.SILVER
     ):
-        integration.add_error(
-            "manifest",
-            f"{quality_scale} integration does not have a code owner",
-        )
+        if not integration.manifest.get("codeowners"):
+            integration.add_error(
+                "manifest",
+                f"{quality_scale} integration does not have a code owner",
+            )
 
     if not integration.core:
         validate_version(integration)

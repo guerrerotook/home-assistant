@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from abc import abstractmethod
 import asyncio
-from collections.abc import Collection, Coroutine, Iterable
+from collections.abc import Callable, Collection, Coroutine, Iterable
 import dataclasses
 from dataclasses import dataclass, field
-from enum import Enum, auto
-from functools import cached_property
+from enum import Enum, StrEnum, auto
 from itertools import groupby
 import logging
 from typing import Any
 
+from propcache import cached_property
 import voluptuous as vol
 
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -33,9 +33,13 @@ from . import (
     entity_registry,
     floor_registry,
 )
+from .typing import VolSchemaType
 
 _LOGGER = logging.getLogger(__name__)
-_SlotsType = dict[str, Any]
+type _SlotsType = dict[str, Any]
+type _IntentSlotsType = dict[
+    str | tuple[str, str], VolSchemaType | Callable[[Any], Any]
+]
 
 INTENT_TURN_OFF = "HassTurnOff"
 INTENT_TURN_ON = "HassTurnOn"
@@ -43,6 +47,17 @@ INTENT_TOGGLE = "HassToggle"
 INTENT_GET_STATE = "HassGetState"
 INTENT_NEVERMIND = "HassNevermind"
 INTENT_SET_POSITION = "HassSetPosition"
+INTENT_START_TIMER = "HassStartTimer"
+INTENT_CANCEL_TIMER = "HassCancelTimer"
+INTENT_CANCEL_ALL_TIMERS = "HassCancelAllTimers"
+INTENT_INCREASE_TIMER = "HassIncreaseTimer"
+INTENT_DECREASE_TIMER = "HassDecreaseTimer"
+INTENT_PAUSE_TIMER = "HassPauseTimer"
+INTENT_UNPAUSE_TIMER = "HassUnpauseTimer"
+INTENT_TIMER_STATUS = "HassTimerStatus"
+INTENT_GET_CURRENT_DATE = "HassGetCurrentDate"
+INTENT_GET_CURRENT_TIME = "HassGetCurrentTime"
+INTENT_RESPOND = "HassRespond"
 
 SLOT_SCHEMA = vol.Schema({}, extra=vol.ALLOW_EXTRA)
 
@@ -57,9 +72,10 @@ SPEECH_TYPE_SSML = "ssml"
 def async_register(hass: HomeAssistant, handler: IntentHandler) -> None:
     """Register an intent with Home Assistant."""
     if (intents := hass.data.get(DATA_KEY)) is None:
-        intents = hass.data[DATA_KEY] = {}
+        intents = {}
+        hass.data[DATA_KEY] = intents
 
-    assert handler.intent_type is not None, "intent_type cannot be None"
+    assert getattr(handler, "intent_type", None), "intent_type should be set"
 
     if handler.intent_type in intents:
         _LOGGER.warning(
@@ -79,6 +95,12 @@ def async_remove(hass: HomeAssistant, intent_type: str) -> None:
     intents.pop(intent_type, None)
 
 
+@callback
+def async_get(hass: HomeAssistant) -> Iterable[IntentHandler]:
+    """Return registered intents."""
+    return hass.data.get(DATA_KEY, {}).values()
+
+
 @bind_hass
 async def async_handle(
     hass: HomeAssistant,
@@ -89,6 +111,8 @@ async def async_handle(
     context: Context | None = None,
     language: str | None = None,
     assistant: str | None = None,
+    device_id: str | None = None,
+    conversation_agent_id: str | None = None,
 ) -> IntentResponse:
     """Handle an intent."""
     handler = hass.data.get(DATA_KEY, {}).get(intent_type)
@@ -111,6 +135,8 @@ async def async_handle(
         context=context,
         language=language,
         assistant=assistant,
+        device_id=device_id,
+        conversation_agent_id=conversation_agent_id,
     )
 
     try:
@@ -122,6 +148,7 @@ async def async_handle(
     except IntentError:
         raise  # bubble up intent related errors
     except Exception as err:
+        _LOGGER.exception("Error handling %s", intent_type)
         raise IntentUnexpectedError(f"Error handling {intent_type}") from err
     return result
 
@@ -140,6 +167,11 @@ class InvalidSlotInfo(IntentError):
 
 class IntentHandleError(IntentError):
     """Error while handling intent."""
+
+    def __init__(self, message: str = "", response_key: str | None = None) -> None:
+        """Initialize error."""
+        super().__init__(message)
+        self.response_key = response_key
 
 
 class IntentUnexpectedError(IntentError):
@@ -221,6 +253,19 @@ class MatchTargetsConstraints:
 
     allow_duplicate_names: bool = False
     """True if entities with duplicate names are allowed in result."""
+
+    @property
+    def has_constraints(self) -> bool:
+        """Returns True if at least one constraint is set (ignores assistant)."""
+        return bool(
+            self.name
+            or self.area_name
+            or self.floor_name
+            or self.domains
+            or self.device_classes
+            or self.features
+            or self.states
+        )
 
 
 @dataclass
@@ -308,6 +353,7 @@ class MatchTargetsCandidate:
     """Candidate for async_match_targets."""
 
     state: State
+    is_exposed: bool
     entity: entity_registry.RegistryEntry | None = None
     area: area_registry.AreaEntry | None = None
     floor: floor_registry.FloorEntry | None = None
@@ -315,7 +361,7 @@ class MatchTargetsCandidate:
     matched_name: str | None = None
 
 
-def _find_areas(
+def find_areas(
     name: str, areas: area_registry.AreaRegistry
 ) -> Iterable[area_registry.AreaEntry]:
     """Find all areas matching a name (including aliases)."""
@@ -335,7 +381,7 @@ def _find_areas(
                 break
 
 
-def _find_floors(
+def find_floors(
     name: str, floors: floor_registry.FloorRegistry
 ) -> Iterable[floor_registry.FloorEntry]:
     """Find all floors matching a name (including aliases)."""
@@ -471,29 +517,31 @@ def async_match_targets(  # noqa: C901
         if not states:
             return MatchTargetsResult(False, MatchFailedReason.DOMAIN)
 
-    if constraints.assistant:
-        # Filter by exposure
-        states = [
-            s
-            for s in states
-            if async_should_expose(hass, constraints.assistant, s.entity_id)
-        ]
-        if not states:
-            return MatchTargetsResult(False, MatchFailedReason.ASSISTANT)
+    candidates = [
+        MatchTargetsCandidate(
+            state=state,
+            is_exposed=(
+                async_should_expose(hass, constraints.assistant, state.entity_id)
+                if constraints.assistant
+                else True
+            ),
+        )
+        for state in states
+    ]
 
     if constraints.domains and (not filtered_by_domain):
         # Filter by domain (if we didn't already do it)
-        states = [s for s in states if s.domain in constraints.domains]
-        if not states:
+        candidates = [c for c in candidates if c.state.domain in constraints.domains]
+        if not candidates:
             return MatchTargetsResult(False, MatchFailedReason.DOMAIN)
 
     if constraints.states:
         # Filter by state
-        states = [s for s in states if s.state in constraints.states]
-        if not states:
+        candidates = [c for c in candidates if c.state.state in constraints.states]
+        if not candidates:
             return MatchTargetsResult(False, MatchFailedReason.STATE)
 
-    # Exit early so we can to avoid registry lookups
+    # Try to exit early so we can avoid registry lookups
     if not (
         constraints.name
         or constraints.features
@@ -501,11 +549,18 @@ def async_match_targets(  # noqa: C901
         or constraints.area_name
         or constraints.floor_name
     ):
-        return MatchTargetsResult(True, states=states)
+        if constraints.assistant:
+            # Check exposure
+            candidates = [c for c in candidates if c.is_exposed]
+            if not candidates:
+                return MatchTargetsResult(False, MatchFailedReason.ASSISTANT)
+
+        return MatchTargetsResult(True, states=[c.state for c in candidates])
 
     # We need entity registry entries now
     er = entity_registry.async_get(hass)
-    candidates = [MatchTargetsCandidate(s, er.async_get(s.entity_id)) for s in states]
+    for candidate in candidates:
+        candidate.entity = er.async_get(candidate.state.entity_id)
 
     if constraints.name:
         # Filter by entity name or alias
@@ -543,7 +598,7 @@ def async_match_targets(  # noqa: C901
         if constraints.floor_name:
             # Filter by areas associated with floor
             fr = floor_registry.async_get(hass)
-            targeted_floors = list(_find_floors(constraints.floor_name, fr))
+            targeted_floors = list(find_floors(constraints.floor_name, fr))
             if not targeted_floors:
                 return MatchTargetsResult(
                     False,
@@ -572,7 +627,7 @@ def async_match_targets(  # noqa: C901
             possible_area_ids = {area.id for area in ar.async_list_areas()}
 
         if constraints.area_name:
-            targeted_areas = list(_find_areas(constraints.area_name, ar))
+            targeted_areas = list(find_areas(constraints.area_name, ar))
             if not targeted_areas:
                 return MatchTargetsResult(
                     False,
@@ -593,6 +648,12 @@ def async_match_targets(  # noqa: C901
                 return MatchTargetsResult(
                     False, MatchFailedReason.AREA, areas=targeted_areas
                 )
+
+    if constraints.assistant:
+        # Check exposure
+        candidates = [c for c in candidates if c.is_exposed]
+        if not candidates:
+            return MatchTargetsResult(False, MatchFailedReason.ASSISTANT)
 
     if constraints.name and (not constraints.allow_duplicate_names):
         # Check for duplicates
@@ -676,6 +737,7 @@ def async_match_states(
     domains: Collection[str] | None = None,
     device_classes: Collection[str] | None = None,
     states: list[State] | None = None,
+    assistant: str | None = None,
 ) -> Iterable[State]:
     """Simplified interface to async_match_targets that returns states matching the constraints."""
     result = async_match_targets(
@@ -686,6 +748,7 @@ def async_match_states(
             floor_name=floor_name,
             domains=domains,
             device_classes=device_classes,
+            assistant=assistant,
         ),
         states=states,
     )
@@ -702,9 +765,14 @@ def async_test_feature(state: State, feature: int, feature_name: str) -> None:
 class IntentHandler:
     """Intent handler registration."""
 
-    intent_type: str | None = None
-    slot_schema: vol.Schema | None = None
-    platforms: Iterable[str] | None = []
+    intent_type: str
+    platforms: set[str] | None = None
+    description: str | None = None
+
+    @property
+    def slot_schema(self) -> dict | None:
+        """Return a slot schema."""
+        return None
 
     @callback
     def async_can_handle(self, intent_obj: Intent) -> bool:
@@ -740,19 +808,20 @@ class IntentHandler:
         return f"<{self.__class__.__name__} - {self.intent_type}>"
 
 
+def non_empty_string(value: Any) -> str:
+    """Coerce value to string and fail if string is empty or whitespace."""
+    value_str = cv.string(value)
+    if not value_str.strip():
+        raise vol.Invalid("string value is empty")
+
+    return value_str
+
+
 class DynamicServiceIntentHandler(IntentHandler):
     """Service Intent handler registration (dynamic).
 
     Service specific intent handler that calls a service by name/entity_id.
     """
-
-    slot_schema = {
-        vol.Any("name", "area", "floor"): cv.string,
-        vol.Optional("domain"): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional("device_class"): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional("preferred_area_id"): cv.string,
-        vol.Optional("preferred_floor_id"): cv.string,
-    }
 
     # We use a small timeout in service calls to (hopefully) pass validation
     # checks, but not try to wait for the call to fully complete.
@@ -762,11 +831,14 @@ class DynamicServiceIntentHandler(IntentHandler):
         self,
         intent_type: str,
         speech: str | None = None,
-        required_slots: dict[str | tuple[str, str], vol.Schema] | None = None,
-        optional_slots: dict[str | tuple[str, str], vol.Schema] | None = None,
+        required_slots: _IntentSlotsType | None = None,
+        optional_slots: _IntentSlotsType | None = None,
         required_domains: set[str] | None = None,
         required_features: int | None = None,
         required_states: set[str] | None = None,
+        description: str | None = None,
+        platforms: set[str] | None = None,
+        device_classes: set[type[StrEnum]] | None = None,
     ) -> None:
         """Create Service Intent Handler."""
         self.intent_type = intent_type
@@ -774,8 +846,11 @@ class DynamicServiceIntentHandler(IntentHandler):
         self.required_domains = required_domains
         self.required_features = required_features
         self.required_states = required_states
+        self.description = description
+        self.platforms = platforms
+        self.device_classes = device_classes
 
-        self.required_slots: dict[tuple[str, str], vol.Schema] = {}
+        self.required_slots: _IntentSlotsType = {}
         if required_slots:
             for key, value_schema in required_slots.items():
                 if isinstance(key, str):
@@ -784,7 +859,7 @@ class DynamicServiceIntentHandler(IntentHandler):
 
                 self.required_slots[key] = value_schema
 
-        self.optional_slots: dict[tuple[str, str], vol.Schema] = {}
+        self.optional_slots: _IntentSlotsType = {}
         if optional_slots:
             for key, value_schema in optional_slots.items():
                 if isinstance(key, str):
@@ -794,33 +869,58 @@ class DynamicServiceIntentHandler(IntentHandler):
                 self.optional_slots[key] = value_schema
 
     @cached_property
-    def _slot_schema(self) -> vol.Schema:
-        """Create validation schema for slots (with extra required slots)."""
-        if self.slot_schema is None:
-            raise ValueError("Slot schema is not defined")
-
-        if self.required_slots or self.optional_slots:
-            slot_schema = {
-                **self.slot_schema,
-                **{
-                    vol.Required(key[0]): schema
-                    for key, schema in self.required_slots.items()
-                },
-                **{
-                    vol.Optional(key[0]): schema
-                    for key, schema in self.optional_slots.items()
-                },
-            }
-        else:
-            slot_schema = self.slot_schema
-
-        return vol.Schema(
-            {
-                key: SLOT_SCHEMA.extend({"value": validator})
-                for key, validator in slot_schema.items()
-            },
-            extra=vol.ALLOW_EXTRA,
+    def slot_schema(self) -> dict:
+        """Return a slot schema."""
+        domain_validator = (
+            vol.In(list(self.required_domains)) if self.required_domains else cv.string
         )
+        slot_schema = {
+            vol.Any("name", "area", "floor"): non_empty_string,
+            vol.Optional("domain"): vol.All(cv.ensure_list, [domain_validator]),
+        }
+        if self.device_classes:
+            # The typical way to match enums is with vol.Coerce, but we build a
+            # flat list to make the API simpler to describe programmatically
+            flattened_device_classes = vol.In(
+                [
+                    device_class.value
+                    for device_class_enum in self.device_classes
+                    for device_class in device_class_enum
+                ]
+            )
+            slot_schema.update(
+                {
+                    vol.Optional("device_class"): vol.All(
+                        cv.ensure_list,
+                        [flattened_device_classes],
+                    )
+                }
+            )
+
+        slot_schema.update(
+            {
+                vol.Optional("preferred_area_id"): cv.string,
+                vol.Optional("preferred_floor_id"): cv.string,
+            }
+        )
+
+        if self.required_slots:
+            slot_schema.update(
+                {
+                    vol.Required(key[0]): validator
+                    for key, validator in self.required_slots.items()
+                }
+            )
+
+        if self.optional_slots:
+            slot_schema.update(
+                {
+                    vol.Optional(key[0]): validator
+                    for key, validator in self.optional_slots.items()
+                }
+            )
+
+        return slot_schema
 
     @abstractmethod
     def get_domain_and_service(
@@ -855,9 +955,6 @@ class DynamicServiceIntentHandler(IntentHandler):
 
         if "domain" in slots:
             domains = set(slots["domain"]["value"])
-            if self.required_domains:
-                # Must be a subset of intent's required domain(s)
-                domains.intersection_update(self.required_domains)
 
         if "device_class" in slots:
             device_classes = set(slots["device_class"]["value"])
@@ -872,6 +969,10 @@ class DynamicServiceIntentHandler(IntentHandler):
             features=self.required_features,
             states=self.required_states,
         )
+        if not match_constraints.has_constraints:
+            # Fail if attempting to target all devices in the house
+            raise IntentHandleError("Service handler cannot target all devices")
+
         match_preferences = MatchTargetsPreferences(
             area_id=slots.get("preferred_area_id", {}).get("value"),
             floor_id=slots.get("preferred_floor_id", {}).get("value"),
@@ -1054,11 +1155,14 @@ class ServiceIntentHandler(DynamicServiceIntentHandler):
         domain: str,
         service: str,
         speech: str | None = None,
-        required_slots: dict[str | tuple[str, str], vol.Schema] | None = None,
-        optional_slots: dict[str | tuple[str, str], vol.Schema] | None = None,
+        required_slots: _IntentSlotsType | None = None,
+        optional_slots: _IntentSlotsType | None = None,
         required_domains: set[str] | None = None,
         required_features: int | None = None,
         required_states: set[str] | None = None,
+        description: str | None = None,
+        platforms: set[str] | None = None,
+        device_classes: set[type[StrEnum]] | None = None,
     ) -> None:
         """Create service handler."""
         super().__init__(
@@ -1069,6 +1173,9 @@ class ServiceIntentHandler(DynamicServiceIntentHandler):
             required_domains=required_domains,
             required_features=required_features,
             required_states=required_states,
+            description=description,
+            platforms=platforms,
+            device_classes=device_classes,
         )
         self.domain = domain
         self.service = service
@@ -1103,6 +1210,8 @@ class Intent:
         "language",
         "category",
         "assistant",
+        "device_id",
+        "conversation_agent_id",
     ]
 
     def __init__(
@@ -1116,6 +1225,8 @@ class Intent:
         language: str,
         category: IntentCategory | None = None,
         assistant: str | None = None,
+        device_id: str | None = None,
+        conversation_agent_id: str | None = None,
     ) -> None:
         """Initialize an intent."""
         self.hass = hass
@@ -1127,6 +1238,8 @@ class Intent:
         self.language = language
         self.category = category
         self.assistant = assistant
+        self.device_id = device_id
+        self.conversation_agent_id = conversation_agent_id
 
     @callback
     def create_response(self) -> IntentResponse:
@@ -1207,6 +1320,7 @@ class IntentResponse:
         self.failed_results: list[IntentResponseTarget] = []
         self.matched_states: list[State] = []
         self.unmatched_states: list[State] = []
+        self.speech_slots: dict[str, Any] = {}
 
         if (self.intent is not None) and (self.intent.category == IntentCategory.QUERY):
             # speech will be the answer to the query
@@ -1283,6 +1397,11 @@ class IntentResponse:
         self.unmatched_states = unmatched_states or []
 
     @callback
+    def async_set_speech_slots(self, speech_slots: dict[str, Any]) -> None:
+        """Set slots that will be used in the response template of the default agent."""
+        self.speech_slots = speech_slots
+
+    @callback
     def as_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of an intent response."""
         response_dict: dict[str, Any] = {
@@ -1294,6 +1413,8 @@ class IntentResponse:
 
         if self.reprompt:
             response_dict["reprompt"] = self.reprompt
+        if self.speech_slots:
+            response_dict["speech_slots"] = self.speech_slots
 
         response_data: dict[str, Any] = {}
 
