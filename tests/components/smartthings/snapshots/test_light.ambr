@@ -6,9 +6,7 @@
     'area_id': None,
     'capabilities': dict({
       'max_color_temp_kelvin': 9000,
-      'max_mireds': 500,
       'min_color_temp_kelvin': 2000,
-      'min_mireds': 111,
       'supported_color_modes': list([
         <ColorMode.COLOR_TEMP: 'color_temp'>,
       ]),
@@ -28,6 +26,7 @@
     'labels': set({
     }),
     'name': None,
+    'object_id_base': None,
     'options': dict({
     }),
     'original_device_class': None,
@@ -35,6 +34,7 @@
     'original_name': None,
     'platform': 'smartthings',
     'previous_unique_id': None,
+    'suggested_object_id': None,
     'supported_features': <LightEntityFeature: 32>,
     'translation_key': None,
     'unique_id': '7c16163e-c94e-482f-95f6-139ae0cd9d5e_main',
@@ -46,14 +46,11 @@
     'attributes': ReadOnlyDict({
       'brightness': None,
       'color_mode': None,
-      'color_temp': None,
       'color_temp_kelvin': None,
       'friendly_name': 'Kitchen Light 5',
       'hs_color': None,
       'max_color_temp_kelvin': 9000,
-      'max_mireds': 500,
       'min_color_temp_kelvin': 2000,
-      'min_mireds': 111,
       'rgb_color': None,
       'supported_color_modes': list([
         <ColorMode.COLOR_TEMP: 'color_temp'>,
@@ -94,6 +91,7 @@
     'labels': set({
     }),
     'name': None,
+    'object_id_base': None,
     'options': dict({
     }),
     'original_device_class': None,
@@ -101,6 +99,7 @@
     'original_name': None,
     'platform': 'smartthings',
     'previous_unique_id': None,
+    'suggested_object_id': None,
     'supported_features': <LightEntityFeature: 32>,
     'translation_key': None,
     'unique_id': 'd0268a69-abfb-4c92-a646-61cec2e510ad_main',
@@ -151,6 +150,7 @@
     'labels': set({
     }),
     'name': None,
+    'object_id_base': None,
     'options': dict({
     }),
     'original_device_class': None,
@@ -158,6 +158,7 @@
     'original_name': None,
     'platform': 'smartthings',
     'previous_unique_id': None,
+    'suggested_object_id': None,
     'supported_features': <LightEntityFeature: 32>,
     'translation_key': None,
     'unique_id': 'aaedaf28-2ae0-4c1d-b57e-87f6a420c298_main',
@@ -190,9 +191,7 @@
     'area_id': None,
     'capabilities': dict({
       'max_color_temp_kelvin': 9000,
-      'max_mireds': 500,
       'min_color_temp_kelvin': 2000,
-      'min_mireds': 111,
       'supported_color_modes': list([
         <ColorMode.COLOR_TEMP: 'color_temp'>,
       ]),
@@ -212,6 +211,7 @@
     'labels': set({
     }),
     'name': None,
+    'object_id_base': None,
     'options': dict({
     }),
     'original_device_class': None,
@@ -219,6 +219,7 @@
     'original_name': None,
     'platform': 'smartthings',
     'previous_unique_id': None,
+    'suggested_object_id': None,
     'supported_features': <LightEntityFeature: 32>,
     'translation_key': None,
     'unique_id': '440063de-a200-40b5-8a6b-f3399eaa0370_main',
@@ -230,7 +231,6 @@
     'attributes': ReadOnlyDict({
       'brightness': 178,
       'color_mode': <ColorMode.COLOR_TEMP: 'color_temp'>,
-      'color_temp': 333,
       'color_temp_kelvin': 3000,
       'friendly_name': 'Bathroom spot',
       'hs_color': tuple(
@@ -238,9 +238,7 @@
         56.895,
       ),
       'max_color_temp_kelvin': 9000,
-      'max_mireds': 500,
       'min_color_temp_kelvin': 2000,
-      'min_mireds': 111,
       'rgb_color': tuple(
         255,
         177,
@@ -270,9 +268,7 @@
     'area_id': None,
     'capabilities': dict({
       'max_color_temp_kelvin': 9000,
-      'max_mireds': 500,
       'min_color_temp_kelvin': 2000,
-      'min_mireds': 111,
       'supported_color_modes': list([
         <ColorMode.COLOR_TEMP: 'color_temp'>,
         <ColorMode.HS: 'hs'>,
@@ -293,6 +289,7 @@
     'labels': set({
     }),
     'name': None,
+    'object_id_base': None,
     'options': dict({
     }),
     'original_device_class': None,
@@ -300,6 +297,7 @@
     'original_name': None,
     'platform': 'smartthings',
     'previous_unique_id': None,
+    'suggested_object_id': None,
     'supported_features': <LightEntityFeature: 32>,
     'translation_key': None,
     'unique_id': 'cb958955-b015-498c-9e62-fc0c51abd054_main',
@@ -311,14 +309,11 @@
     'attributes': ReadOnlyDict({
       'brightness': None,
       'color_mode': None,
-      'color_temp': None,
       'color_temp_kelvin': None,
       'friendly_name': 'Standing light',
       'hs_color': None,
       'max_color_temp_kelvin': 9000,
-      'max_mireds': 500,
       'min_color_temp_kelvin': 2000,
-      'min_mireds': 111,
       'rgb_color': None,
       'supported_color_modes': list([
         <ColorMode.COLOR_TEMP: 'color_temp'>,
