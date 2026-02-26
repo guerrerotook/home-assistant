@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from dataclasses import dataclass
 
 from tesla_fleet_api.const import Scope
@@ -28,6 +27,7 @@ class TeslemetryData:
     vehicles: list[TeslemetryVehicleData]
     energysites: list[TeslemetryEnergyData]
     scopes: list[Scope]
+    stream: TeslemetryStream | None
 
 
 @dataclass
@@ -37,12 +37,12 @@ class TeslemetryVehicleData:
     api: Vehicle
     config_entry: ConfigEntry
     coordinator: TeslemetryVehicleDataCoordinator
+    poll: bool
     stream: TeslemetryStream
     stream_vehicle: TeslemetryStreamVehicle
     vin: str
     firmware: str
     device: DeviceInfo
-    remove_listener: Callable
     wakelock = asyncio.Lock()
 
 
